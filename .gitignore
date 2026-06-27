@@ -1,0 +1,43 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+*.egg
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# 테스트/커버리지/캐시
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 비밀값 — .env 는 절대 커밋하지 않는다 (.env.example 만 커밋)
+.env
+.env.*
+!.env.example
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ---- IDE ----
+.idea/
+.vscode/
+
+# ---- uv ----
+# uv.lock 은 커밋한다 (재현 가능한 빌드). 아래처럼 무시하지 않는다.
+
+# ---- oh-my-claudecode 내부 상태 (커밋하지 않음) ----
+.omc/

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PlayMCP-SDC/playmcp-server",
+  "description": "PlayMCP MCP 서버 (설명을 채워주세요)",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/PlayMCP-SDC/playmcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "playmcp-server",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      # 린트 (자동 수정)
+      - id: ruff
+        args: ["--fix"]
+      # 포맷
+      - id: ruff-format

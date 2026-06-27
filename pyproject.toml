@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "playmcp-server"
+version = "0.1.0"
+description = "PlayMCP MCP 서버 (설명을 채워주세요)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "PlayMCP-SDC" }]
+keywords = ["mcp", "model-context-protocol", "fastmcp"]
+dependencies = [
+    "mcp[cli]>=1.27,<2",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[project.scripts]
+playmcp-server = "playmcp_server.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/playmcp_server"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

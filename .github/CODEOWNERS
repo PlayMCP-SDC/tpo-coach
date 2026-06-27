@@ -1,0 +1,7 @@
+# 폴더별 자동 리뷰어 지정.
+# Team 핸들은 placeholder 다 — 조직에 Team 을 만든 뒤 실제 값으로 교체한다.
+# (예: @PlayMCP-SDC/maintainers, @PlayMCP-SDC/docs)
+
+/src/playmcp_server/server.py   @PlayMCP-SDC/maintainers
+/src/playmcp_server/tools/       @PlayMCP-SDC/maintainers
+docs/                            @PlayMCP-SDC/docs
