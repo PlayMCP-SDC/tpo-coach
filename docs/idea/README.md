@@ -1,7 +1,7 @@
 # TPO Coach — 아이디어 개요
 
-> 상태: **아이디어/기획 단계**. 아래 내용은 주제와 대략적인 플로우를 정리한 것으로,
-> 도구(tool) 스키마·API·데이터 모델은 아직 확정 전이다.
+> 상태: **아이디어 개요**. 이 문서는 주제·플로우 개요이며, 확정된 구현 범위·도구 표면·일정은
+> [features.md](features.md)·[delivery-plan.md](delivery-plan.md) 를, 이미지 입력 처리 결론은 [image-input.md](image-input.md) 를 참고.
 
 ## TPO Coach 란
 
@@ -20,13 +20,13 @@
 | 모드 | 주체 | 한 줄 설명 | 문서 |
 | --- | --- | --- | --- |
 | **모임장 모드** | 모임 주최자 | 상황을 입력하면 단톡방에 공유할 **TPO 가이드 카드**를 생성 | [host-mode.md](host-mode.md) |
-| **개인 착장 검사** | 참석자 개인 | 가이드 기준으로 **내 옷 사진만 비공개로** 점검 | [host-mode.md](host-mode.md#개인-착장-검사) |
+| **개인 착장 검사** | 참석자 개인 | 가이드 기준으로 **내 착장을 비공개로** 점검 (텍스트 기본, `image_url` 보조 → [image-input.md](image-input.md)) | [host-mode.md](host-mode.md#개인-착장-검사) |
 
 ## 착장 추천 플로우 (개인)
 
 개인이 착장을 맞출 때의 대략적인 흐름:
 
-1. **의상 색상 뽑기** — 사진/입력에서 기준 의상의 색상을 추출
+1. **의상 색상 뽑기** — 텍스트 설명/색상 입력(보조로 `image_url`)에서 기준 의상의 색상을 추출
 2. **어울리는 하의 찾기** — 데이터(셋업 기반)에서 색상과 어울리는 하의 후보 매칭
 3. **유사도 높은 하의 보여주기** — 후보를 유사도 순으로 추천
 
@@ -46,4 +46,7 @@
 
 - [host-mode.md](host-mode.md) — 모임장 모드 상세 (가이드 카드, 개인 착장 검사, 프라이버시)
 - [use-cases.md](use-cases.md) — 활용 시나리오와 상황별 주의점
-- [matching-flow.md](matching-flow.md) — 색상 기반 착장 추천 플로우
+- [matching-flow.md](matching-flow.md) — 색상 기반 착장 추천 플로우 (v1)
+- [features.md](features.md) — 기능 카탈로그 & MCP 도구 매핑 (14기능 → 도구 ~7개, MVP 슬라이스)
+- [delivery-plan.md](delivery-plan.md) — 구현 범위·역할·일정 (C 베이스라인, 7/9 등록 데드라인, 3인 분담)
+- [image-input.md](image-input.md) — 이미지(사진) 입력 처리 (텍스트 기본·image_url 보조, 호스트 자동업로드 없음)
