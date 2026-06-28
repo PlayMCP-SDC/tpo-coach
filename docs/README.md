@@ -8,6 +8,7 @@
 - [idea/host-mode.md](idea/host-mode.md) — 모임장 모드 (단톡방 가이드 카드, 개인 착장 검사)
 - [idea/use-cases.md](idea/use-cases.md) — 활용 시나리오와 상황별 주의점
 - [idea/matching-flow.md](idea/matching-flow.md) — 색상 기반 착장 추천 플로우
+- [idea/features.md](idea/features.md) — **기능 카탈로그 & MCP 도구 매핑** (14기능 → 도구 ~7개, MVP 슬라이스)
 
 ## 작성할 내용 (자리)
 
