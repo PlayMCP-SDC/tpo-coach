@@ -10,6 +10,7 @@
 - [idea/matching-flow.md](idea/matching-flow.md) — 색상 기반 착장 추천 플로우
 - [idea/features.md](idea/features.md) — **기능 카탈로그 & MCP 도구 매핑** (14기능 → 도구 ~7개, MVP 슬라이스)
 - [idea/delivery-plan.md](idea/delivery-plan.md) — **구현 범위·역할·일정** (예선 7/9 등록 데드라인, 3인 분담, 범위 베이스라인)
+- [idea/image-input.md](idea/image-input.md) — **이미지(사진) 입력 처리** (MCP는 도구에 원본 이미지 못 받음 → 옵션·검증 계획)
 
 ## 작성할 내용 (자리)
 
