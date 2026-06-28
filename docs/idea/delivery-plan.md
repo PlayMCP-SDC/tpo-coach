@@ -28,7 +28,7 @@
 | annotations | ✅ 필수 | 5종 정직하게(정적·결정적 = readOnly/idempotent=true, openWorld=false) |
 | 배포 + CI | ✅ 필수 | 카카오 클라우드 streamable-http + 공개 URL + PlayMCP 등록, ruff/pytest 게이트 |
 | 품질 카피 | ✅ 싼 승리 | 면책 문구 + 계절 슬롯. **장례·종교 시나리오는 복귀 후(v1)** |
-| privacy 가드 | 🟡 MVP 최소 | 텍스트 입력만 → 이미지 입력 거부 + PII 미로깅. 본격화는 이미지 기능 시 |
+| privacy 가드 | 🟡 입력 방식 따라 | 텍스트 경로는 거의 불필요. **`image_url` 경로는 PlayMCP 실증됨** → 채택 시 처리 후 즉시 폐기·미로깅·동의 강제. 상세 [image-input.md](image-input.md) |
 
 ## 2. MVP 도구 4개 + 공유 타입
 
@@ -37,7 +37,7 @@
 | `parse_occasion` | 자연어 상황 → 구조화(일시·장소·성격·제약·계절), `reference_time` 인자 | readOnly=T, idempotent=T, openWorld=F, destructive=F |
 | `recommend_dresscode` | 구조화 상황 → 권장수준 + 추천/금기 + 면책 (결정적 규칙) | 동일 |
 | `create_tpo_guide` | 권장수준 → 가이드 카드(자기완결 `check_criteria` 포함) | 동일 |
-| `check_outfit` | 카드 기준 + 착장 텍스트 → 부합/조정/부적합 + 이유 | 동일 |
+| `check_outfit` | 카드 기준 + 착장(텍스트 또는 `image_url`) → 부합/조정/부적합 + 이유 | 텍스트: 동일 / 비전 API 경유 시 openWorld=T |
 
 **공유 타입(`models.py`)**: `occasion`, `dresscode_result`, `guide_card`, `check_criteria` — FastMCP가 타입힌트로 스키마 자동 생성. stateless라 도구 간 값 전달은 클라이언트가 담당하므로 모양만 맞춰두면 됨.
 
