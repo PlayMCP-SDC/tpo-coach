@@ -49,8 +49,9 @@ PlayMCP 갤러리는 JS 렌더링이라, **공개 카탈로그 API `https://play
 - **공식 가이드 FAQ가 쐐기**: *"AI 채팅은 응답 content가 **TextContent 타입만 허용**, 이미지는 URL을 마크다운으로 텍스트에 포함.
   TextContent 외 타입은 **도구함으로 Claude/ChatGPT 직접 연결**할 때만"*. FAQ 34항목에 이미지/사진/파일 **첨부 항목 0개**.
   (출처: PlayMCP 가이드 Notion FAQ)
-  > ⚠️ **재검증 필요(2026-06-29)**: 이 "TextContent-only" 문구는 이후 **서버 개발가이드 본문·Notion 개발가이드에서 확인되지 않았다**
-  > (가이드는 `widget json` 등 비-텍스트 result 타입을 시사). 1차 출처 미확인 → PlayMCP에 직접 배포해 도구의 ImageContent 처리 여부를 테스트로 확정할 것.
+  > ✅ **실측 확정(2026-06-29)**: KC 배포 후 PlayMCP AI Chat에서 도구가 `ImageContent` 를 반환하니 **작은 이미지도 "답변 생성 중 오류"** 로 실패.
+  > 즉 **PlayMCP AI Chat은 도구 결과의 이미지를 모델에 넘기지 않는다**(문구 출처는 못 찾았지만 동작상 텍스트 결과가 사실상 강제). 카탈로그 API 조사에서도 등록작
+  > 261개 도구 중 **이미지 입력/반환 도구 0개**. → 도구 결과는 **텍스트**로. (이미지 PoC는 모델 없는 색상 추출로 선회 — [image_poc.md](image_poc.md))
 - → **PlayMCP AI Chat = 텍스트 입출력 중심**. 첨부 사진 자동 주입 증거 없음. 멀티모달 첨부는 외부 호스트(Claude/ChatGPT) 연결 경로에서만.
 
 출처: [PlayMCP 카탈로그 API](https://playmcp.kakao.com/api/v1/mcps?page=0&size=100) ·
