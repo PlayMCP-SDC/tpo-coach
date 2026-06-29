@@ -14,6 +14,8 @@ keywords = ["mcp", "model-context-protocol", "fastmcp"]
 dependencies = [
     "mcp[cli]>=1.27,<2",
     "httpx",
+    "python-multipart",  # /upload 멀티파트 폼 파싱
+    "Pillow",            # 이미지 검증·EXIF 제거·리사이즈
 ]
 
 [project.optional-dependencies]
@@ -22,6 +24,8 @@ dev = [
     "pytest-asyncio",
     "ruff",
 ]
+# 설명은 호스트 모델이 하므로 서버엔 비전 SDK가 필요 없다.
+heic = ["pillow-heif"]  # 아이폰 HEIC 입력 지원(선택)
 
 [project.scripts]
 playmcp-server = "playmcp_server.server:main"

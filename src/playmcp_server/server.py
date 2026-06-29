@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from playmcp_server.config import load_config
 from playmcp_server.tools import register_tools
+from playmcp_server.web.upload import register_routes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +50,10 @@ mcp = FastMCP(
 
 # tools/ 아래 도구들을 등록한다.
 register_tools(mcp)
+
+# 보조 HTTP 라우트(/upload, /i/{token})를 등록한다.
+# streamable-http 전송일 때만 실제로 마운트된다.
+register_routes(mcp)
 
 
 def main() -> None:
