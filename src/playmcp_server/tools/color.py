@@ -49,20 +49,81 @@ def _name_of(r: int, g: int, b: int) -> str:
     return min(_NAMED, key=dist)[0]
 
 
+# 배경 판정: 추출 색이 테두리 색과 이 거리(제곱) 이내면 배경으로 본다.
+# 약 28/채널 — JPEG 압축 노이즈는 흡수, 뚜렷이 다른 의상색은 보존.
+_BG_DIST = 2400
+
+
+def _rgb_dist(a: tuple[int, int, int], b: tuple[int, int, int]) -> int:
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+
+
+def _background_colors(
+    img: object, band_ratio: float = 0.08
+) -> list[tuple[int, int, int]]:
+    """이미지 테두리(가장자리 띠)를 표본으로 배경 후보 색을 추정한다.
+
+    의상 사진은 대개 옷이 가운데에 있으므로, 바깥 테두리 픽셀을 배경으로 본다.
+    테두리 픽셀을 양자화해 비중이 큰(테두리의 15%+) 색만 배경으로 채택한다.
+    """
+    from PIL import Image
+
+    w, h = img.size
+    band = max(1, int(min(w, h) * band_ratio))
+    px = img.load()
+    border: list[tuple[int, int, int]] = []
+    for y in range(h):
+        edge_row = y < band or y >= h - band
+        for x in range(w):
+            if edge_row or x < band or x >= w - band:
+                border.append(px[x, y])
+    if not border:
+        return []
+    strip = Image.new("RGB", (len(border), 1))
+    strip.putdata(border)
+    bq = strip.quantize(colors=3, method=Image.Quantize.MEDIANCUT)
+    palette = bq.getpalette() or []
+    counts = bq.getcolors() or []
+    total = sum(c for c, _ in counts) or 1
+    bgs: list[tuple[int, int, int]] = []
+    for count, idx in counts:
+        if count / total >= 0.15:
+            r, g, b = palette[idx * 3 : idx * 3 + 3]
+            bgs.append((r, g, b))
+    return bgs
+
+
 def extract_colors(data: bytes, n: int = 5) -> list[tuple[str, str, float]]:
-    """대표 색상을 (hex, 이름, 비율) 목록으로 비율 내림차순 반환."""
+    """대표 색상을 (hex, 이름, 비율) 목록으로 비율 내림차순 반환.
+
+    테두리 색을 배경으로 추정해 제외하므로, 배경이 아닌 '의상' 색이 우선된다.
+    배경 제외 후 남는 색이 없으면(단색·배경뿐인 이미지) 전체 결과로 폴백한다.
+    """
     from PIL import Image
 
     img = Image.open(io.BytesIO(data)).convert("RGB")
     img.thumbnail((128, 128))  # 속도용 축소
-    q = img.quantize(colors=n, method=Image.Quantize.MEDIANCUT)
+
+    bgs = _background_colors(img)
+    # 배경이 일부를 먹으므로 클러스터를 넉넉히 잡아 의상 색 여지를 남긴다.
+    q = img.quantize(colors=n + 3, method=Image.Quantize.MEDIANCUT)
     palette = q.getpalette() or []
     counts = q.getcolors() or []
-    total = sum(c for c, _ in counts) or 1
+
+    everything: list[tuple[int, tuple[int, int, int]]] = [
+        (count, (palette[idx * 3], palette[idx * 3 + 1], palette[idx * 3 + 2]))
+        for count, idx in sorted(counts, reverse=True)
+    ]
+    fg = [(c, rgb) for c, rgb in everything
+          if not any(_rgb_dist(rgb, bg) <= _BG_DIST for bg in bgs)]
+
+    # 전부 배경으로 분류되면(단색·배경뿐) 배경 제외를 포기하고 전체를 쓴다.
+    kept = fg or everything
+    kept_total = sum(c for c, _ in kept) or 1
+
     out: list[tuple[str, str, float]] = []
-    for count, idx in sorted(counts, reverse=True):
-        r, g, b = palette[idx * 3 : idx * 3 + 3]
-        out.append((f"#{r:02X}{g:02X}{b:02X}", _name_of(r, g, b), count / total))
+    for count, (r, g, b) in kept[:n]:
+        out.append((f"#{r:02X}{g:02X}{b:02X}", _name_of(r, g, b), count / kept_total))
     return out
 
 
