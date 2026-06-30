@@ -6,6 +6,10 @@ DB 의 K-Fashion 셋업을 style 로 무작위 표본 추출해 이미지 URL �
 
 from __future__ import annotations
 
+from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+
+from playmcp_server.db.repository import get_repository
 from playmcp_server.db.vocab import STYLES
 from playmcp_server.models import Outfit
 
@@ -53,3 +57,76 @@ def _format_outfit(o: Outfit) -> str:
             f"- 구성: {' · '.join(parts) if parts else '정보 없음'}",
         ]
     )
+
+
+def _recommend(style: str, n: int, header: str | None) -> str:
+    """style 검증 → 무작위 표본 → 마크다운 렌더. header 있으면 맨 위에 붙인다."""
+    if style not in STYLES:
+        return _invalid_style_msg(style)
+    outfits = get_repository().sample_outfits(style=style, n=_clamp_n(n))
+    if not outfits:
+        return (
+            f"'{style}' 스타일의 코디를 찾지 못했습니다. "
+            "다른 스타일로 시도해 보세요."
+        )
+    body = "\n\n".join(_format_outfit(o) for o in outfits)
+    return f"{header}\n\n{body}" if header else body
+
+
+def register_tools(mcp: FastMCP) -> None:
+    """추천 도구 2개를 등록한다."""
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Recommend outfit sets by style",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=False,  # 랜덤 표본 — 매 호출 결과 다름
+            openWorldHint=False,  # 로컬 DB·외부 호출 없음
+        )
+    )
+    def recommend_outfits_by_style(style: str, n: int = _N_DEFAULT) -> str:
+        """Recommends outfit sets (코디) of a given style for TPO Coach(티피오 코치).
+
+        Samples up to n random outfit coordinations of the requested style from
+        the K-Fashion reference set and returns them as image-URL markdown. If the
+        style is not supported, the valid style list is returned instead.
+
+        Args:
+            style: One of the supported Korean styles (e.g. 클래식, 스트리트, 로맨틱).
+            n: Number of outfits to recommend. Clamped to 1-10, default 3.
+
+        Returns:
+            Markdown listing recommended outfits (image, style, composition).
+        """
+        return _recommend(style, n, header=f"**{style}** 스타일 코디 추천")
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Recommend outfit sets for a situation",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        )
+    )
+    def recommend_outfits_by_situation(
+        situation: str, style: str, n: int = _N_DEFAULT
+    ) -> str:
+        """Recommends outfit sets (코디) for a situation for TPO Coach(티피오 코치).
+
+        Given a free-text situation, infer the single most fitting style from the
+        supported Korean styles and pass it as `style`; the tool then samples up to
+        n random outfits of that style. The situation is echoed in the response
+        heading. If the style is unsupported, the valid style list is returned.
+
+        Args:
+            situation: User's situation in free text (e.g. "주말 소개팅"). Echoed only.
+            style: Supported style inferred from the situation (e.g. 로맨틱, 클래식).
+            n: Number of outfits to recommend. Clamped to 1-10, default 3.
+
+        Returns:
+            Markdown: situation/style heading + recommended outfits.
+        """
+        header = f"**{situation}**에 어울리는 **{style}** 코디 추천"
+        return _recommend(style, n, header=header)
