@@ -129,3 +129,45 @@ def test_find_outfits_style_filter(
 def test_find_outfits_limit(outfit_repo: SQLiteClothingRepository) -> None:
     fits = outfit_repo.find_outfits(occasion="놀이동산", limit=1)
     assert len(fits) == 1
+
+
+def test_get_repository_reads_env_path(tmp_path, monkeypatch) -> None:
+    """CLOTHING_DB_PATH 가 가리키는 read-only DB 를 연다."""
+    from playmcp_server.db import repository
+
+    db_path = tmp_path / "t.db"
+    conn = sqlite3.connect(db_path)
+    schema.init_schema(conn)
+    conn.execute(
+        "INSERT INTO clothing_items "
+        "(id,name,category,color,image_url,formality) "
+        "VALUES ('x','t','bottom','검정','http://i',3)"
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("CLOTHING_DB_PATH", str(db_path))
+    repository.reset_repository()
+    repo = repository.get_repository()
+    assert repo.get_item("x") is not None
+
+
+def test_get_repository_is_read_only(tmp_path, monkeypatch) -> None:
+    from playmcp_server.db import repository
+
+    db_path = tmp_path / "t.db"
+    conn = sqlite3.connect(db_path)
+    schema.init_schema(conn)
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("CLOTHING_DB_PATH", str(db_path))
+    repository.reset_repository()
+    repo = repository.get_repository()
+    with pytest.raises(sqlite3.OperationalError):
+        repo._conn.execute(
+            "INSERT INTO clothing_items "
+            "(id,name,category,color,image_url,formality) "
+            "VALUES ('y','t','bottom','검정','http://i',3)"
+        )
+    repository.reset_repository()

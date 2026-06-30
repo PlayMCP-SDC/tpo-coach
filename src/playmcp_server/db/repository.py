@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
+from pathlib import Path
 from typing import Protocol
 
 from playmcp_server.models import ClothingItem, Outfit
@@ -141,3 +143,43 @@ class SQLiteClothingRepository:
         )
         params.append(limit)
         return [_outfit(r) for r in self._conn.execute(sql, params)]
+
+
+# 기본 DB 경로: 패키지 내부 data/clothing.db. 환경변수로 재정의 가능.
+_DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "clothing.db"
+
+_repo: SQLiteClothingRepository | None = None
+
+
+def _db_path() -> Path:
+    return Path(os.environ.get("CLOTHING_DB_PATH", str(_DEFAULT_DB)))
+
+
+def get_repository() -> SQLiteClothingRepository:
+    """프로세스 단위 read-only 저장소 싱글턴을 돌려준다.
+
+    DB 파일이 없으면 즉시 실패한다(fail-fast).
+    """
+    global _repo
+    if _repo is None:
+        path = _db_path()
+        if not path.exists():
+            raise FileNotFoundError(
+                f"clothing DB 가 없습니다: {path}. "
+                "`python -m playmcp_server.db.build_db` 로 생성하세요."
+            )
+        conn = sqlite3.connect(
+            f"file:{path}?mode=ro&immutable=1",
+            uri=True,
+            check_same_thread=False,
+        )
+        _repo = SQLiteClothingRepository(conn)
+    return _repo
+
+
+def reset_repository() -> None:
+    """싱글턴을 초기화한다(테스트·재로딩용)."""
+    global _repo
+    if _repo is not None:
+        _repo._conn.close()
+    _repo = None
