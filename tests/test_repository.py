@@ -120,3 +120,24 @@ def test_get_repository_is_read_only(tmp_path, monkeypatch) -> None:
             )
     finally:
         repository.reset_repository()
+
+
+def test_sample_outfits_only_style_and_active(repo: SQLiteOutfitRepository) -> None:
+    # "모던" 활성은 o1, o3 (o4 는 soft-deleted 라 제외)
+    ids = {o.id for o in repo.sample_outfits(style="모던", n=10)}
+    assert ids == {"o1", "o3"}
+
+
+def test_sample_outfits_respects_n(repo: SQLiteOutfitRepository) -> None:
+    assert len(repo.sample_outfits(style="모던", n=1)) == 1
+
+
+def test_sample_outfits_unknown_style_empty(repo: SQLiteOutfitRepository) -> None:
+    assert repo.sample_outfits(style="없는스타일", n=3) == []
+
+
+def test_sample_outfits_returns_outfit_objects(repo: SQLiteOutfitRepository) -> None:
+    out = repo.sample_outfits(style="스트리트", n=3)
+    assert len(out) == 1
+    assert out[0].id == "o2"
+    assert out[0].bottom_category == "청바지"

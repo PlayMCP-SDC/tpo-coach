@@ -29,6 +29,8 @@ class OutfitRepository(Protocol):
         limit: int = 20,
     ) -> list[Outfit]: ...
 
+    def sample_outfits(self, *, style: str, n: int) -> list[Outfit]: ...
+
 
 def _outfit(row: sqlite3.Row) -> Outfit:
     return Outfit(
@@ -94,6 +96,15 @@ class SQLiteOutfitRepository:
         )
         params.append(limit)
         return [_outfit(r) for r in self._conn.execute(sql, params)]
+
+    def sample_outfits(self, *, style: str, n: int) -> list[Outfit]:
+        rows = self._conn.execute(
+            "SELECT * FROM outfits "
+            "WHERE style = ? AND deleted_at IS NULL "
+            "ORDER BY RANDOM() LIMIT ?",
+            (style, n),
+        )
+        return [_outfit(r) for r in rows]
 
 
 # 기본 DB 경로: 패키지 내부 data/clothing.db. 환경변수로 재정의 가능.
