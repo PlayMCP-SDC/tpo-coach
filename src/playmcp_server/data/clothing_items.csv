@@ -1,0 +1,9 @@
+id,name,category,subcategory,color,image_url,seller_name,seller_url,price,formality,season,style_tags
+itm_0001,베이지 코튼 치노,bottom,chino,베이지,https://example.com/img/itm_0001,무신사,https://example.com/buy/itm_0001,39000,3,all,미니멀
+itm_0002,인디고 스트레이트 데님,bottom,jeans,남색,https://example.com/img/itm_0002,무신사,https://example.com/buy/itm_0002,59000,2,all,캐주얼
+itm_0003,차콜 울 슬랙스,bottom,slacks,회색,https://example.com/img/itm_0003,무신사,https://example.com/buy/itm_0003,79000,5,fall,클래식
+itm_0004,검정 와이드 슬랙스,bottom,slacks,검정,https://example.com/img/itm_0004,무신사,https://example.com/buy/itm_0004,69000,4,all,미니멀
+itm_0005,흰색 코튼 팬츠,bottom,cotton,흰색,https://example.com/img/itm_0005,무신사,https://example.com/buy/itm_0005,45000,3,summer,캐주얼
+itm_0006,카키 카고 팬츠,bottom,cargo,카키,https://example.com/img/itm_0006,무신사,https://example.com/buy/itm_0006,55000,2,fall,스트릿
+itm_0007,남색 옥스퍼드 셔츠,top,shirt,남색,https://example.com/img/itm_0007,무신사,https://example.com/buy/itm_0007,49000,3,all,클래식
+itm_0008,흰색 라운드 티셔츠,top,tshirt,흰색,https://example.com/img/itm_0008,무신사,https://example.com/buy/itm_0008,19000,2,summer,캐주얼

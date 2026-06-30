@@ -1,0 +1,6 @@
+id,title,image_url,source,source_url,formality,season,occasion_tags,style_tags,items_note
+fit_0001,놀이동산 캐주얼 코디,https://example.com/img/fit_0001,instagram,https://instagram.com/p/fit_0001,2,spring,"놀이동산,데이트","캐주얼",흰 티셔츠+데님 팬츠+스니커즈
+fit_0002,놀이동산 스트릿 코디,https://example.com/img/fit_0002,instagram,https://instagram.com/p/fit_0002,1,summer,"놀이동산,여행","스트릿",오버핏 티+카고팬츠
+fit_0003,하객룩 클래식,https://example.com/img/fit_0003,musinsa,https://musinsa.com/fit_0003,4,all,"하객룩","클래식",셔츠+슬랙스+로퍼
+fit_0004,소개팅 미니멀,https://example.com/img/fit_0004,instagram,https://instagram.com/p/fit_0004,3,fall,"소개팅,데이트","미니멀",니트+슬랙스
+fit_0005,오피스 캐주얼,https://example.com/img/fit_0005,musinsa,https://musinsa.com/fit_0005,4,all,"오피스","클래식",셔츠+치노
