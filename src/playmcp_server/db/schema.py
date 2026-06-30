@@ -1,59 +1,40 @@
-"""SQLite 스키마와 태그 정규화 헬퍼."""
+"""SQLite 스키마 — K-Fashion 셋업(코디) 레퍼런스.
+
+한 행 = 한 이미지(셋업). 부위(상의/하의/아우터/원피스)별 카테고리·기장을
+고정 컬럼으로 담는다(부위당 의류 최대 1개). 개별 의류(garments)는 별도
+독립 소스이며 이 스키마에 포함하지 않는다.
+
+soft delete: deleted_at 이 NULL 이면 활성 행. 인덱스는 활성 행만 대상으로 한다.
+"""
 
 from __future__ import annotations
 
 import sqlite3
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS clothing_items (
-    id           TEXT PRIMARY KEY,
-    name         TEXT NOT NULL,
-    category     TEXT NOT NULL,
-    subcategory  TEXT,
-    color        TEXT NOT NULL,
-    image_url    TEXT NOT NULL,
-    seller_name  TEXT,
-    seller_url   TEXT,
-    price        INTEGER,
-    formality    INTEGER NOT NULL DEFAULT 3,
-    season       TEXT,
-    style_tags   TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_items_cat_color
-  ON clothing_items(category, color);
-CREATE INDEX IF NOT EXISTS idx_items_cat_formality
-  ON clothing_items(category, formality);
-
 CREATE TABLE IF NOT EXISTS outfits (
-    id            TEXT PRIMARY KEY,
-    title         TEXT,
-    image_url     TEXT NOT NULL,
-    source        TEXT,
-    source_url    TEXT,
-    formality     INTEGER,
-    season        TEXT,
-    occasion_tags TEXT NOT NULL,
-    style_tags    TEXT,
-    items_note    TEXT
+    id          TEXT PRIMARY KEY,   -- 이미지 식별자(= 버킷 객체 키 stem, 전역 고유)
+    image_url   TEXT NOT NULL,      -- 버킷 공개 URL ("{base}/{id}.jpg")
+    style       TEXT NOT NULL,      -- 스타일 (STYLES)
+    substyle    TEXT,               -- 서브스타일 (SUBSTYLES)
+
+    -- 구성: 부위별 카테고리 + 기장 (없는 부위는 NULL)
+    top_category     TEXT,   top_length     TEXT,   -- 상의
+    bottom_category  TEXT,   bottom_length  TEXT,   -- 하의
+    outer_category   TEXT,   outer_length   TEXT,   -- 아우터
+    dress_category   TEXT,   dress_length   TEXT,   -- 원피스
+
+    created_at  TEXT,               -- 파일 생성일자(JSON)
+    updated_at  TEXT,               -- 마지막 변경 시각
+    deleted_at  TEXT                -- soft delete (NULL = 활성)
 );
-CREATE INDEX IF NOT EXISTS idx_outfits_formality
-  ON outfits(formality);
-CREATE INDEX IF NOT EXISTS idx_outfits_season
-  ON outfits(season);
+CREATE INDEX IF NOT EXISTS idx_outfits_style
+  ON outfits(style) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_outfits_substyle
+  ON outfits(substyle) WHERE deleted_at IS NULL;
 """
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
     """주어진 연결에 테이블·인덱스를 생성한다(멱등)."""
     conn.executescript(SCHEMA)
-
-
-def normalize_tags(raw: str) -> str:
-    """'a, b' → ',a,b,' (정확 토큰 매칭용). 비면 ''."""
-    parts = [p.strip() for p in raw.split(",") if p.strip()]
-    return "," + ",".join(parts) + "," if parts else ""
-
-
-def tags_to_list(normalized: str) -> list[str]:
-    """',a,b,' → ['a','b']. 비면 []."""
-    return [p for p in normalized.split(",") if p]

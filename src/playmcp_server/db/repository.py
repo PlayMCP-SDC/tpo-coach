@@ -1,7 +1,8 @@
-"""의상 데이터 저장소.
+"""셋업(코디) 저장소.
 
-도구는 ClothingRepository Protocol 에만 의존한다(백엔드 교체 가능).
-지금은 SQLiteClothingRepository 하나만 구현한다(하나의 read-only db 파일).
+도구는 OutfitRepository Protocol 에만 의존한다(백엔드 교체 가능).
+지금은 SQLiteOutfitRepository 하나만 구현한다(하나의 read-only db 파일).
+soft delete: deleted_at 이 NULL 인 활성 행만 조회한다.
 """
 
 from __future__ import annotations
@@ -11,131 +12,81 @@ import sqlite3
 from pathlib import Path
 from typing import Protocol
 
-from playmcp_server.models import ClothingItem, Outfit
+from playmcp_server.models import Outfit
 
 
-class ClothingRepository(Protocol):
-    """의상 아이템·셋업 조회 인터페이스."""
-
-    def get_item(self, item_id: str) -> ClothingItem | None: ...
-
-    def find_bottoms(
-        self,
-        colors: list[str],
-        *,
-        formality: int | None = None,
-        season: str | None = None,
-    ) -> list[ClothingItem]: ...
+class OutfitRepository(Protocol):
+    """셋업 조회 인터페이스."""
 
     def get_outfit(self, outfit_id: str) -> Outfit | None: ...
 
     def find_outfits(
         self,
         *,
-        occasion: str,
         style: str | None = None,
-        formality: int | None = None,
-        season: str | None = None,
-        limit: int = 5,
+        substyle: str | None = None,
+        category: str | None = None,
+        limit: int = 20,
     ) -> list[Outfit]: ...
-
-
-def _item(row: sqlite3.Row) -> ClothingItem:
-    return ClothingItem(
-        id=row["id"],
-        name=row["name"],
-        category=row["category"],
-        subcategory=row["subcategory"],
-        color=row["color"],
-        image_url=row["image_url"],
-        seller_name=row["seller_name"],
-        seller_url=row["seller_url"],
-        price=row["price"],
-        formality=row["formality"],
-        season=row["season"],
-        style_tags=row["style_tags"],
-    )
 
 
 def _outfit(row: sqlite3.Row) -> Outfit:
     return Outfit(
         id=row["id"],
-        title=row["title"],
         image_url=row["image_url"],
-        source=row["source"],
-        source_url=row["source_url"],
-        formality=row["formality"],
-        season=row["season"],
-        occasion_tags=row["occasion_tags"],
-        style_tags=row["style_tags"],
-        items_note=row["items_note"],
+        style=row["style"],
+        substyle=row["substyle"],
+        top_category=row["top_category"],
+        top_length=row["top_length"],
+        bottom_category=row["bottom_category"],
+        bottom_length=row["bottom_length"],
+        outer_category=row["outer_category"],
+        outer_length=row["outer_length"],
+        dress_category=row["dress_category"],
+        dress_length=row["dress_length"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        deleted_at=row["deleted_at"],
     )
 
 
-class SQLiteClothingRepository:
+class SQLiteOutfitRepository:
     """SQLite 기반 구현. 주어진 연결을 그대로 쓴다."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         conn.row_factory = sqlite3.Row
         self._conn = conn
 
-    def get_item(self, item_id: str) -> ClothingItem | None:
-        row = self._conn.execute(
-            "SELECT * FROM clothing_items WHERE id = ?", (item_id,)
-        ).fetchone()
-        return _item(row) if row else None
-
-    def find_bottoms(
-        self,
-        colors: list[str],
-        *,
-        formality: int | None = None,
-        season: str | None = None,
-    ) -> list[ClothingItem]:
-        if not colors:
-            return []
-        placeholders = ",".join("?" * len(colors))
-        where = ["category = 'bottom'", f"color IN ({placeholders})"]
-        params: list[object] = list(colors)
-        if formality is not None:
-            where.append("formality BETWEEN ? AND ?")
-            params += [formality - 1, formality + 1]
-        if season is not None:
-            where.append("(season IS NULL OR season IN (?, 'all'))")
-            params.append(season)
-        sql = (
-            "SELECT * FROM clothing_items WHERE "
-            + " AND ".join(where)
-            + " ORDER BY id"
-        )
-        return [_item(r) for r in self._conn.execute(sql, params)]
-
     def get_outfit(self, outfit_id: str) -> Outfit | None:
         row = self._conn.execute(
-            "SELECT * FROM outfits WHERE id = ?", (outfit_id,)
+            "SELECT * FROM outfits WHERE id = ? AND deleted_at IS NULL",
+            (outfit_id,),
         ).fetchone()
         return _outfit(row) if row else None
 
     def find_outfits(
         self,
         *,
-        occasion: str,
         style: str | None = None,
-        formality: int | None = None,
-        season: str | None = None,
-        limit: int = 5,
+        substyle: str | None = None,
+        category: str | None = None,
+        limit: int = 20,
     ) -> list[Outfit]:
-        where = ["occasion_tags LIKE '%,' || ? || ',%'"]
-        params: list[object] = [occasion]
+        where = ["deleted_at IS NULL"]
+        params: list[object] = []
         if style is not None:
-            where.append("style_tags LIKE '%,' || ? || ',%'")
+            where.append("style = ?")
             params.append(style)
-        if formality is not None:
-            where.append("(formality IS NULL OR formality BETWEEN ? AND ?)")
-            params += [formality - 1, formality + 1]
-        if season is not None:
-            where.append("(season IS NULL OR season IN (?, 'all'))")
-            params.append(season)
+        if substyle is not None:
+            where.append("substyle = ?")
+            params.append(substyle)
+        if category is not None:
+            # 카테고리는 부위별 컬럼에 흩어져 있어 4개 중 하나라도 일치하면 포함.
+            where.append(
+                "(top_category = ? OR bottom_category = ? "
+                "OR outer_category = ? OR dress_category = ?)"
+            )
+            params += [category] * 4
         sql = (
             "SELECT * FROM outfits WHERE "
             + " AND ".join(where)
@@ -148,14 +99,14 @@ class SQLiteClothingRepository:
 # 기본 DB 경로: 패키지 내부 data/clothing.db. 환경변수로 재정의 가능.
 _DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "clothing.db"
 
-_repo: SQLiteClothingRepository | None = None
+_repo: SQLiteOutfitRepository | None = None
 
 
 def _db_path() -> Path:
     return Path(os.environ.get("CLOTHING_DB_PATH", str(_DEFAULT_DB)))
 
 
-def get_repository() -> SQLiteClothingRepository:
+def get_repository() -> SQLiteOutfitRepository:
     """프로세스 단위 read-only 저장소 싱글턴을 돌려준다.
 
     DB 파일이 없으면 즉시 실패한다(fail-fast).
@@ -165,15 +116,15 @@ def get_repository() -> SQLiteClothingRepository:
         path = _db_path()
         if not path.exists():
             raise FileNotFoundError(
-                f"clothing DB 가 없습니다: {path}. "
-                "`python -m playmcp_server.db.build_db` 로 생성하세요."
+                f"outfits DB 가 없습니다: {path}. "
+                "`python -m playmcp_server.db.build_db --src ...` 로 생성하세요."
             )
         conn = sqlite3.connect(
             f"file:{path}?mode=ro&immutable=1",
             uri=True,
             check_same_thread=False,
         )
-        _repo = SQLiteClothingRepository(conn)
+        _repo = SQLiteOutfitRepository(conn)
     return _repo
 
 

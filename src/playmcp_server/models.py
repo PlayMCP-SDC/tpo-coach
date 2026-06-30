@@ -6,34 +6,21 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ClothingItem:
-    """개별 의상 아이템 (색 매칭용)."""
-
-    id: str
-    name: str
-    category: str
-    color: str
-    image_url: str
-    formality: int
-    subcategory: str | None = None
-    seller_name: str | None = None
-    seller_url: str | None = None
-    price: int | None = None
-    season: str | None = None
-    style_tags: str | None = None
-
-
-@dataclass(frozen=True)
 class Outfit:
-    """큐레이션된 셋업/코디 (상황 기반 추천용)."""
+    """K-Fashion 셋업(코디) 한 건. 부위별 카테고리·기장은 없으면 None."""
 
     id: str
     image_url: str
-    occasion_tags: str
-    title: str | None = None
-    source: str | None = None
-    source_url: str | None = None
-    formality: int | None = None
-    season: str | None = None
-    style_tags: str | None = None
-    items_note: str | None = None
+    style: str
+    substyle: str | None = None
+    top_category: str | None = None
+    top_length: str | None = None
+    bottom_category: str | None = None
+    bottom_length: str | None = None
+    outer_category: str | None = None
+    outer_length: str | None = None
+    dress_category: str | None = None
+    dress_length: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    deleted_at: str | None = None
