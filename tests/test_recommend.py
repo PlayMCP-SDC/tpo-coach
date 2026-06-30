@@ -1,6 +1,8 @@
 """셋업 추천 도구 — 순수 헬퍼 + 도구 동작 검증."""
 
 import sqlite3
+import time
+from pathlib import Path
 
 import pytest
 
@@ -125,3 +127,24 @@ async def test_tools_listed_with_honest_annotations(
     anno = by_name["recommend_outfits_by_style"].annotations
     assert anno.idempotentHint is False
     assert anno.readOnlyHint is True
+
+
+def test_sample_perf_on_real_db(monkeypatch) -> None:
+    """동봉 DB 가 있으면 최다 스타일 표본이 1초 내에 끝나는지 가드."""
+    real = (
+        Path(__file__).resolve().parent.parent
+        / "src/playmcp_server/data/clothing.db"
+    )
+    if not real.exists():
+        pytest.skip("packaged clothing.db 없음")
+    monkeypatch.setenv("CLOTHING_DB_PATH", str(real))
+    repository.reset_repository()
+    try:
+        repo = repository.get_repository()
+        t0 = time.perf_counter()
+        out = repo.sample_outfits(style="스트리트", n=3)
+        elapsed = time.perf_counter() - t0
+    finally:
+        repository.reset_repository()
+    assert len(out) == 3
+    assert elapsed < 1.0, f"sample 너무 느림: {elapsed:.3f}s (p99 3s 위험)"
