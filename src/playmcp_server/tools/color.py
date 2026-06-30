@@ -1,8 +1,10 @@
 """색상 추출 도구 — 모델 없이(Pillow) 이미지 대표 색상을 뽑아 텍스트로 반환.
 
 비전 모델·외부 API·키가 필요 없다(완전 모델 독립, 오프라인). 결과가 텍스트라
-PlayMCP 등 텍스트 전용 호스트에서도 동작한다. TPO Coach 색상 매칭의 1단계
-(이 색을 기준으로 어울리는 하의를 추천하는 흐름으로 확장).
+PlayMCP 등 텍스트 전용 호스트에서도 동작한다. TPO Coach 가 옷의 대표 색상을
+텍스트로 뽑아 스타일링 참고 정보로 제공하는 용도이며, 색상 기반 자동 추천
+파이프라인으로 이어지지는 않는다(추천은 `recommend_outfits_by_style` /
+`recommend_outfits_by_situation` 등 스타일 기반 흐름을 따른다).
 """
 
 from __future__ import annotations

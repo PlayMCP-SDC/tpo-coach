@@ -7,17 +7,17 @@
 
 ## 추가 절차
 
-1. 이 폴더에 새 모듈을 만든다 (예: `weather.py`). `example.py` 를 복사해 시작해도 된다.
+1. 이 폴더에 새 모듈을 만든다 (예: `weather.py`). 기존 `color.py` 를 참고해 시작한다.
 2. 모듈 안에 `register_tools(mcp)` 함수를 만들고 그 안에서 `@mcp.tool(...)` 로 도구를 정의한다.
 3. [`__init__.py`](__init__.py) 의 `register_tools` 에서 새 모듈을 호출한다.
 
 ```python
 # tools/__init__.py
-from playmcp_server.tools import example, weather   # ← 추가
+from playmcp_server.tools import color, weather   # ← 추가
 
 def register_tools(mcp: FastMCP) -> None:
-    example.register_tools(mcp)
-    weather.register_tools(mcp)                      # ← 추가
+    color.register_tools(mcp)
+    weather.register_tools(mcp)                    # ← 추가
 ```
 
 ## 올바른 도구 예시 (PlayMCP 규칙 충족)
