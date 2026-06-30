@@ -55,6 +55,21 @@ def _item(row: sqlite3.Row) -> ClothingItem:
     )
 
 
+def _outfit(row: sqlite3.Row) -> Outfit:
+    return Outfit(
+        id=row["id"],
+        title=row["title"],
+        image_url=row["image_url"],
+        source=row["source"],
+        source_url=row["source_url"],
+        formality=row["formality"],
+        season=row["season"],
+        occasion_tags=row["occasion_tags"],
+        style_tags=row["style_tags"],
+        items_note=row["items_note"],
+    )
+
+
 class SQLiteClothingRepository:
     """SQLite 기반 구현. 주어진 연결을 그대로 쓴다."""
 
@@ -92,3 +107,37 @@ class SQLiteClothingRepository:
             + " ORDER BY id"
         )
         return [_item(r) for r in self._conn.execute(sql, params)]
+
+    def get_outfit(self, outfit_id: str) -> Outfit | None:
+        row = self._conn.execute(
+            "SELECT * FROM outfits WHERE id = ?", (outfit_id,)
+        ).fetchone()
+        return _outfit(row) if row else None
+
+    def find_outfits(
+        self,
+        *,
+        occasion: str,
+        style: str | None = None,
+        formality: int | None = None,
+        season: str | None = None,
+        limit: int = 5,
+    ) -> list[Outfit]:
+        where = ["occasion_tags LIKE '%,' || ? || ',%'"]
+        params: list[object] = [occasion]
+        if style is not None:
+            where.append("style_tags LIKE '%,' || ? || ',%'")
+            params.append(style)
+        if formality is not None:
+            where.append("(formality IS NULL OR formality BETWEEN ? AND ?)")
+            params += [formality - 1, formality + 1]
+        if season is not None:
+            where.append("(season IS NULL OR season IN (?, 'all'))")
+            params.append(season)
+        sql = (
+            "SELECT * FROM outfits WHERE "
+            + " AND ".join(where)
+            + " ORDER BY id LIMIT ?"
+        )
+        params.append(limit)
+        return [_outfit(r) for r in self._conn.execute(sql, params)]

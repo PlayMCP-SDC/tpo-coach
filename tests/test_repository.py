@@ -66,3 +66,66 @@ def test_find_bottoms_season_filter(repo: SQLiteClothingRepository) -> None:
 
 def test_find_bottoms_empty_colors(repo: SQLiteClothingRepository) -> None:
     assert repo.find_bottoms([]) == []
+
+
+@pytest.fixture
+def outfit_repo() -> SQLiteClothingRepository:
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    conn.executemany(
+        "INSERT INTO outfits "
+        "(id,title,image_url,source,source_url,formality,season,"
+        "occasion_tags,style_tags,items_note) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [
+            (
+                "f1", "놀이동산 캐주얼", "http://img/f1", "instagram",
+                "http://ig/f1", 2, "spring", ",놀이동산,데이트,",
+                ",캐주얼,", "흰 티, 데님"
+            ),
+            (
+                "f2", "하객룩", "http://img/f2", "musinsa",
+                "http://ms/f2", 4, "all", ",하객룩,", ",클래식,", None
+            ),
+            (
+                "f3", "놀이동산 스트릿", "http://img/f3", "instagram",
+                "http://ig/f3", 1, "summer", ",놀이동산,여행,",
+                ",스트릿,", None
+            ),
+        ],
+    )
+    conn.commit()
+    return SQLiteClothingRepository(conn)
+
+
+def test_get_outfit_found(outfit_repo: SQLiteClothingRepository) -> None:
+    fit = outfit_repo.get_outfit("f1")
+    assert fit is not None
+    assert fit.title == "놀이동산 캐주얼"
+
+
+def test_get_outfit_missing(outfit_repo: SQLiteClothingRepository) -> None:
+    assert outfit_repo.get_outfit("nope") is None
+
+
+def test_find_outfits_by_occasion(outfit_repo: SQLiteClothingRepository) -> None:
+    fits = outfit_repo.find_outfits(occasion="놀이동산")
+    assert {f.id for f in fits} == {"f1", "f3"}
+
+
+def test_find_outfits_exact_token_match(
+    outfit_repo: SQLiteClothingRepository,
+) -> None:
+    """부분일치 오탐 방지: '동산'은 '놀이동산'에 걸리면 안 된다."""
+    assert outfit_repo.find_outfits(occasion="동산") == []
+
+
+def test_find_outfits_style_filter(
+    outfit_repo: SQLiteClothingRepository,
+) -> None:
+    fits = outfit_repo.find_outfits(occasion="놀이동산", style="스트릿")
+    assert {f.id for f in fits} == {"f3"}
+
+
+def test_find_outfits_limit(outfit_repo: SQLiteClothingRepository) -> None:
+    fits = outfit_repo.find_outfits(occasion="놀이동산", limit=1)
+    assert len(fits) == 1
