@@ -1,112 +1,256 @@
-"""큐레이션 시드 CSV → read-only clothing.db 생성 + 유효성 검증.
+"""K-Fashion 라벨링 JSON → read-only outfits.db 생성 + 유효성 검증.
 
-CLI:  python -m playmcp_server.db.build_db
-기본 입력: data/clothing_items.csv, data/outfits.csv → 출력: data/clothing.db
+CLI:  python -m playmcp_server.db.build_db --src <라벨링데이터 루트> [--dest <db>]
+      (--src 생략 시 환경변수 KFASHION_LABEL_DIR 사용)
+
+입력 구조:  <루트>/<스타일폴더>/<이미지식별자>.json
+출력:       data/clothing.db (테이블 outfits)
+
+한 JSON = 한 셋업(코디) = outfits 한 행. 부위(상의/하의/아우터/원피스)별
+카테고리·기장만 추출하고, 좌표·색상·소재 등 나머지는 버린다.
 """
 
 from __future__ import annotations
 
-import csv
+import argparse
+import json
 import logging
+import os
 import sqlite3
 import sys
+from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 
 from playmcp_server.db import schema
-from playmcp_server.db.color_rules import NAMED_COLORS
 from playmcp_server.db.vocab import (
-    CATEGORIES,
-    OCCASION_TAGS,
-    SEASONS,
-    STYLE_TAGS,
+    CATEGORIES_BY_PART,
+    LENGTHS,
+    STYLES,
+    SUBSTYLES,
+    normalize_length,
 )
 
 logger = logging.getLogger("playmcp_server.db.build_db")
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 
+# 라벨링 부위 → outfits 컬럼 prefix.
+_PART_PREFIX: dict[str, str] = {
+    "상의": "top",
+    "하의": "bottom",
+    "아우터": "outer",
+    "원피스": "dress",
+}
 
-def _int_or_none(v: str | None) -> int | None:
-    v = (v or "").strip()
-    return int(v) if v else None
+_INSERT = (
+    "INSERT INTO outfits ("
+    "id,image_url,style,substyle,"
+    "top_category,top_length,bottom_category,bottom_length,"
+    "outer_category,outer_length,dress_category,dress_length,"
+    "created_at,updated_at,deleted_at) "
+    "VALUES (:id,:image_url,:style,:substyle,"
+    ":top_category,:top_length,:bottom_category,:bottom_length,"
+    ":outer_category,:outer_length,:dress_category,:dress_length,"
+    ":created_at,:updated_at,NULL)"
+)
 
 
-def _check_tags(raw: str, allowed: frozenset[str], field: str) -> None:
-    for t in (p.strip() for p in raw.split(",") if p.strip()):
-        if t not in allowed:
-            raise ValueError(f"{field} 태그 미등록: {t} (허용: {sorted(allowed)})")
+def _image_url(oid: str, url_base: str) -> str:
+    """전역 고유 id 로 버킷 공개 URL 을 만든다('{base}/{id}.jpg').
+
+    url_base 가 비면 객체 키('{id}.jpg')만 저장한다(업로드 후 보정 전제).
+    """
+    key = f"{oid}.jpg"
+    return f"{url_base.rstrip('/')}/{key}" if url_base else key
 
 
-def _check_season(v: str | None) -> None:
-    if v and v.strip() and v.strip() not in SEASONS:
-        raise ValueError(f"season 미등록: {v} (허용: {sorted(SEASONS)})")
+class ParseError(ValueError):
+    """라벨링 JSON 이 기대 구조·어휘에서 벗어났을 때."""
 
 
-def build(items: list[dict], outfits: list[dict], dest: Path) -> None:
-    """검증 후 dest 에 새 DB 를 만든다(기존 파일 덮어씀)."""
+def _first(arr: object) -> dict:
+    """라벨링의 [{...}] 형태에서 첫 비어있지 않은 dict 를 돌려준다(없으면 {})."""
+    if isinstance(arr, list):
+        for x in arr:
+            if isinstance(x, dict) and x:
+                return x
+    return {}
+
+
+# 시그니처에 포함하는 부위별 속성(저장 안 하는 색상·소재·핏 등까지 전부).
+_SIG_ATTRS = (
+    "카테고리", "색상", "서브색상", "기장", "소매기장",
+    "소재", "프린트", "핏", "넥라인", "옷깃", "디테일",
+)
+
+
+def _label_signature(lab: dict) -> str:
+    """전체 라벨(저장 안 하는 속성 포함)로 dedupe 키를 만든다.
+
+    같은 셋업의 동일 라벨 컷만 합치고, 한 속성이라도 다르면 분리(안전).
+    """
+    s = _first(lab.get("스타일"))
+    parts: list[tuple] = []
+    for part in _PART_PREFIX:
+        it = _first(lab.get(part))
+        vals = []
+        for a in _SIG_ATTRS:
+            v = it.get(a)
+            if a == "기장":
+                v = normalize_length(v)
+            elif isinstance(v, list):
+                v = tuple(sorted(map(str, v)))
+            vals.append(v)
+        parts.append((part, *vals))
+    return repr((s.get("스타일"), s.get("서브스타일"), tuple(parts)))
+
+
+def parse_outfit(doc: dict, *, now: str, url_base: str = "") -> dict:
+    """라벨링 JSON 문서 → outfits 행 dict. 어휘 위반 시 ParseError.
+
+    image_url 은 id 로 조립한다(디스크/JSON 파일명이 아니라 버킷 키 기준).
+    """
+    img = doc.get("이미지 정보", {})
+    ds = doc.get("데이터셋 정보", {})
+    lab = ds.get("데이터셋 상세설명", {}).get("라벨링", {})
+
+    oid = img.get("이미지 식별자")
+    if oid is None:
+        raise ParseError("이미지 식별자 누락")
+    oid = str(oid)
+
+    style_obj = _first(lab.get("스타일"))
+    style = style_obj.get("스타일")
+    substyle = style_obj.get("서브스타일") or None
+    if style not in STYLES:
+        raise ParseError(f"스타일 미등록: {style!r}")
+    if substyle is not None and substyle not in SUBSTYLES:
+        raise ParseError(f"서브스타일 미등록: {substyle!r}")
+
+    row: dict[str, object | None] = {
+        "id": oid,
+        "image_url": _image_url(oid, url_base),
+        "style": style,
+        "substyle": substyle,
+        "created_at": ds.get("파일 생성일자") or None,
+        "updated_at": now,
+    }
+    for part, prefix in _PART_PREFIX.items():
+        item = _first(lab.get(part))
+        category = item.get("카테고리") or None
+        if category is not None and category not in CATEGORIES_BY_PART[part]:
+            raise ParseError(f"{part} 카테고리 미등록: {category!r}")
+        length = normalize_length(item.get("기장"))
+        if length is not None and length not in LENGTHS:
+            raise ParseError(f"{part} 기장 미등록: {length!r}")
+        row[f"{prefix}_category"] = category
+        row[f"{prefix}_length"] = length
+    # dedupe 키(INSERT 시 무시되는 부가 키). 전체 라벨 기준.
+    row["_sig"] = _label_signature(lab)
+    return row
+
+
+def iter_json_files(root: Path) -> Iterator[Path]:
+    """<루트>/<스타일>/*.json 을 정렬 순서로 순회한다."""
+    for style_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        yield from sorted(style_dir.glob("*.json"))
+
+
+def build(
+    root: Path,
+    dest: Path,
+    *,
+    url_base: str = "",
+    strict: bool = False,
+    batch: int = 1000,
+) -> tuple[int, int, int]:
+    """root 의 라벨링 JSON 을 검증·적재해 dest DB 를 만든다(기존 파일 덮어씀).
+
+    url_base: 버킷 공개 base URL. image_url = "{url_base}/{id}.jpg".
+    전체 라벨 시그니처가 같은 컷은 1개만 적재한다(첫 등장이 대표).
+    Returns: (적재 수, 스킵 수, 중복제거 수). strict=True 면 첫 오류에서 중단.
+    """
     dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         dest.unlink()
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    loaded = skipped = deduped = 0
+    seen: set[str] = set()
     conn = sqlite3.connect(dest)
     try:
         schema.init_schema(conn)
-        for it in items:
-            if it["color"] not in NAMED_COLORS:
-                raise ValueError(f"color 미등록: {it['color']}")
-            if it["category"] not in CATEGORIES:
-                raise ValueError(f"category 미등록: {it['category']}")
-            _check_season(it.get("season"))
-            conn.execute(
-                "INSERT INTO clothing_items (id,name,category,subcategory,color,"
-                "image_url,seller_name,seller_url,price,formality,season,"
-                "style_tags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (
-                    it["id"], it["name"], it["category"],
-                    it.get("subcategory") or None, it["color"], it["image_url"],
-                    it.get("seller_name") or None, it.get("seller_url") or None,
-                    _int_or_none(it.get("price")),
-                    int(it.get("formality") or 3),
-                    it.get("season") or None, it.get("style_tags") or None,
-                ),
-            )
-        for ft in outfits:
-            _check_tags(ft["occasion_tags"], OCCASION_TAGS, "occasion")
-            _check_tags(ft.get("style_tags") or "", STYLE_TAGS, "style")
-            _check_season(ft.get("season"))
-            conn.execute(
-                "INSERT INTO outfits (id,title,image_url,source,source_url,"
-                "formality,season,occasion_tags,style_tags,items_note) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (
-                    ft["id"], ft.get("title") or None, ft["image_url"],
-                    ft.get("source") or None, ft.get("source_url") or None,
-                    _int_or_none(ft.get("formality")), ft.get("season") or None,
-                    schema.normalize_tags(ft["occasion_tags"]),
-                    schema.normalize_tags(ft.get("style_tags") or "") or None,
-                    ft.get("items_note") or None,
-                ),
-            )
+        buf: list[dict] = []
+        for fp in iter_json_files(root):
+            try:
+                doc = json.loads(fp.read_text(encoding="utf-8"))
+                row = parse_outfit(doc, now=now, url_base=url_base)
+            except (ParseError, json.JSONDecodeError, OSError) as e:
+                if strict:
+                    raise ParseError(f"{fp}: {e}") from e
+                skipped += 1
+                logger.warning("스킵 %s: %s", fp.name, e)
+                continue
+            sig = row.pop("_sig")
+            if sig in seen:
+                deduped += 1
+                continue
+            seen.add(sig)
+            buf.append(row)
+            if len(buf) >= batch:
+                conn.executemany(_INSERT, buf)
+                loaded += len(buf)
+                buf.clear()
+        if buf:
+            conn.executemany(_INSERT, buf)
+            loaded += len(buf)
         conn.commit()
     finally:
         conn.close()
+    return loaded, skipped, deduped
 
 
-def _read_csv(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+def _resolve_src(arg: str | None) -> Path:
+    src = arg or os.environ.get("KFASHION_LABEL_DIR")
+    if not src:
+        raise SystemExit(
+            "라벨링데이터 루트를 지정하세요: --src <경로> 또는 "
+            "환경변수 KFASHION_LABEL_DIR"
+        )
+    root = Path(src).expanduser()
+    if not root.is_dir():
+        raise SystemExit(f"라벨링데이터 루트가 없습니다: {root}")
+    return root
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
-    items = _read_csv(_DATA / "clothing_items.csv")
-    outfits = _read_csv(_DATA / "outfits.csv")
-    dest = _DATA / "clothing.db"
-    build(items, outfits, dest)
+    parser = argparse.ArgumentParser(description="K-Fashion 라벨링 → outfits.db")
+    parser.add_argument("--src", help="라벨링데이터 루트 (스타일 폴더들의 부모)")
+    parser.add_argument("--dest", default=str(_DATA / "clothing.db"))
+    parser.add_argument(
+        "--url-base",
+        default=os.environ.get("IMAGE_URL_BASE", ""),
+        help="버킷 공개 base URL (env IMAGE_URL_BASE). image_url='{base}/{id}.jpg'",
+    )
+    parser.add_argument(
+        "--strict", action="store_true", help="첫 오류에서 중단(기본: 스킵)"
+    )
+    args = parser.parse_args()
+
+    root = _resolve_src(args.src)
+    if not args.url_base:
+        logger.warning(
+            "--url-base 미지정 — image_url 에 객체 키('{id}.jpg')만 저장됨"
+        )
+    loaded, skipped, deduped = build(
+        root, Path(args.dest), url_base=args.url_base, strict=args.strict
+    )
     logger.info(
-        "clothing.db 생성: items=%d outfits=%d → %s",
-        len(items), len(outfits), dest,
+        "outfits.db 생성: loaded=%d deduped=%d skipped=%d → %s",
+        loaded, deduped, skipped, args.dest,
     )
 
 

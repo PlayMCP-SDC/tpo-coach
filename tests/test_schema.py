@@ -1,11 +1,11 @@
-"""스키마·태그 정규화 검증."""
+"""outfits 스키마 검증."""
 
 import sqlite3
 
 from playmcp_server.db import schema
 
 
-def test_init_schema_creates_tables() -> None:
+def test_init_schema_creates_outfits_table() -> None:
     conn = sqlite3.connect(":memory:")
     schema.init_schema(conn)
     names = {
@@ -14,18 +14,27 @@ def test_init_schema_creates_tables() -> None:
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
     }
-    assert {"clothing_items", "outfits"} <= names
+    assert "outfits" in names
 
 
-def test_normalize_tags_wraps_with_delimiters() -> None:
-    assert schema.normalize_tags("놀이동산, 데이트") == ",놀이동산,데이트,"
+def test_outfits_has_expected_columns() -> None:
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(outfits)")}
+    expected = {
+        "id", "image_url", "style", "substyle",
+        "top_category", "top_length", "bottom_category", "bottom_length",
+        "outer_category", "outer_length", "dress_category", "dress_length",
+        "created_at", "updated_at", "deleted_at",
+    }
+    assert expected <= cols
 
 
-def test_normalize_tags_empty() -> None:
-    assert schema.normalize_tags("") == ""
-    assert schema.normalize_tags("  ") == ""
-
-
-def test_tags_to_list_roundtrip() -> None:
-    assert schema.tags_to_list(",놀이동산,데이트,") == ["놀이동산", "데이트"]
-    assert schema.tags_to_list("") == []
+def test_init_schema_is_idempotent() -> None:
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    schema.init_schema(conn)  # 두 번 호출해도 예외 없어야 한다
+    n = conn.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE name='outfits'"
+    ).fetchone()[0]
+    assert n == 1

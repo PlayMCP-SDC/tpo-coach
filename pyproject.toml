@@ -26,6 +26,7 @@ dev = [
 ]
 # 설명은 호스트 모델이 하므로 서버엔 비전 SDK가 필요 없다.
 heic = ["pillow-heif"]  # 아이폰 HEIC 입력 지원(선택)
+upload = ["boto3", "python-dotenv"]  # R2(S3호환) 이미지 일괄 업로드 스크립트용
 
 [project.scripts]
 playmcp-server = "playmcp_server.server:main"
