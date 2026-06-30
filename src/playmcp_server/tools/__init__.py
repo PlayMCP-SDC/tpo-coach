@@ -6,10 +6,9 @@ server.py 에서 register_tools(mcp) 를 호출한다.
 
 from mcp.server.fastmcp import FastMCP
 
-from playmcp_server.tools import color, example
+from playmcp_server.tools import color
 
 
 def register_tools(mcp: FastMCP) -> None:
     """모든 도구 모듈을 FastMCP 인스턴스에 등록한다."""
-    example.register_tools(mcp)
     color.register_tools(mcp)
