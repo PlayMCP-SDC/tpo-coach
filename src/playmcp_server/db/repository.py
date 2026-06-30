@@ -98,11 +98,13 @@ class SQLiteOutfitRepository:
         return [_outfit(r) for r in self._conn.execute(sql, params)]
 
     def sample_outfits(self, *, style: str, n: int) -> list[Outfit]:
+        # SQLite 는 음수 LIMIT 을 "무제한"으로 취급하므로, 호출자(Protocol)를
+        # 신뢰하지 않고 여기서도 0 이상으로 한 번 더 막아준다(방어적 클램프).
         rows = self._conn.execute(
             "SELECT * FROM outfits "
             "WHERE style = ? AND deleted_at IS NULL "
             "ORDER BY RANDOM() LIMIT ?",
-            (style, n),
+            (style, max(0, n)),
         )
         return [_outfit(r) for r in rows]
 

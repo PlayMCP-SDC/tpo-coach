@@ -141,3 +141,8 @@ def test_sample_outfits_returns_outfit_objects(repo: SQLiteOutfitRepository) -> 
     assert len(out) == 1
     assert out[0].id == "o2"
     assert out[0].bottom_category == "청바지"
+
+
+def test_sample_outfits_negative_n_returns_empty(repo: SQLiteOutfitRepository) -> None:
+    # 음수 n 은 SQLite 에서 무제한(LIMIT -1)이 되므로 0 으로 막아 빈 결과를 보장한다
+    assert repo.sample_outfits(style="모던", n=-1) == []
