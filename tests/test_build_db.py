@@ -54,3 +54,15 @@ def test_build_rejects_unknown_occasion_tag(tmp_path) -> None:
     bad = {**GOOD_OUTFIT, "occasion_tags": "달나라"}
     with pytest.raises(ValueError, match="occasion"):
         build_db.build([], [bad], tmp_path / "out.db")
+
+
+def test_real_seed_files_build(tmp_path) -> None:
+    """동봉 시드 CSV 가 검증을 통과해 빌드된다."""
+    from playmcp_server.db.build_db import _DATA, _read_csv, build
+
+    items = _read_csv(_DATA / "clothing_items.csv")
+    outfits = _read_csv(_DATA / "outfits.csv")
+    assert items and outfits
+    dest = tmp_path / "real.db"
+    build(items, outfits, dest)  # 미등록 색/태그면 ValueError 로 실패
+    assert dest.exists()
