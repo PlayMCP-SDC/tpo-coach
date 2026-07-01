@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 from typing import Protocol
 
-from playmcp_server.db.season import season_where
+from playmcp_server.db.season import season_order_by, season_where
 from playmcp_server.models import Outfit
 
 
@@ -114,18 +114,26 @@ class SQLiteOutfitRepository:
     def sample_outfits(
         self, *, style: str, n: int, season: str | None = None
     ) -> list[Outfit]:
-        # SQLite 는 음수 LIMIT 을 "무제한"으로 취급하므로, 호출자(Protocol)를
-        # 신뢰하지 않고 여기서도 0 이상으로 한 번 더 막아준다(방어적 클램프).
-        where = "style = ? AND deleted_at IS NULL"
+        # 완성 코디만 추천(항상). NULL 은 통과 — 실 DB 는 0/1, 테스트 편의.
+        where = (
+            "style = ? AND deleted_at IS NULL "
+            "AND (is_complete IS NULL OR is_complete = 1)"
+        )
         params: list[object] = [style]
+        order = "RANDOM()"
         if season:
             frag, sp = season_where(season)
             if frag:
                 where += " AND " + frag
                 params.extend(sp)
+            order_expr, op = season_order_by(season)
+            if order_expr:
+                order = order_expr
+                params.extend(op)
+        # SQLite 는 음수 LIMIT 을 "무제한"으로 취급 → 방어적 클램프.
         params.append(max(0, n))
         rows = self._conn.execute(
-            f"SELECT * FROM outfits WHERE {where} ORDER BY RANDOM() LIMIT ?",
+            f"SELECT * FROM outfits WHERE {where} ORDER BY {order} LIMIT ?",
             params,
         )
         return [_outfit(r) for r in rows]
