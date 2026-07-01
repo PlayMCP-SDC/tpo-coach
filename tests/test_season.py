@@ -48,13 +48,16 @@ def test_summer_excludes_warm_coat_maxi(db) -> None:
 
 
 def test_winter_excludes_cool_sleeveless_mini_bratop(db) -> None:
-    _insert(db, "ok", top_warmth="따뜻", top_sleeve="긴팔")
+    _insert(db, "ok", top_warmth="따뜻", top_sleeve="긴팔", bottom_length="발목")
     _insert(db, "cool", top_warmth="시원")             # 시원 → 탈락
     _insert(db, "sleeve", top_sleeve="반팔")           # 반팔 → 탈락
     _insert(db, "mini", dress_length="미니")           # 미니 → 탈락
     _insert(db, "bra", top_category="브라탑")          # 브라탑 → 탈락
+    _insert(db, "midi", bottom_length="미디")          # (v2) 미디 하의 → 탈락
+    _insert(db, "knee", dress_length="니렝스")         # (v2) 니렝스 원피스 → 탈락
+    _insert(db, "maxi", bottom_length="맥시")          # 맥시 하의 → 통과
     db.commit()
-    assert _kept(db, "겨울") == {"ok"}
+    assert _kept(db, "겨울") == {"ok", "maxi"}
 
 
 def test_springfall_only_excludes_padding(db) -> None:

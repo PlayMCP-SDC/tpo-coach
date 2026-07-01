@@ -45,8 +45,8 @@ def season_where(season: str) -> tuple[str, list[str]]:
             add(_ne(c, "시원"))
         for c in _SLEEVE_COLS:
             add(_not_in(c, ("민소매", "반팔", "캡")))
-        add(_ne("bottom_length", "미니"))
-        add(_ne("dress_length", "미니"))
+        add(_not_in("bottom_length", ("미니", "미디", "니렝스")))
+        add(_not_in("dress_length", ("미니", "미디", "니렝스")))
         add(_ne("top_category", "브라탑"))
     elif season == "봄가을":
         add(_ne("outer_category", "패딩"))
