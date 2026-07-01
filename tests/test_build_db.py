@@ -168,6 +168,37 @@ def test_build_persists_season_columns(tmp_path) -> None:
     assert r == ("긴팔", "울/캐시미어", "따뜻")
 
 
+def test_parse_is_complete_top_and_bottom() -> None:
+    row = build_db.parse_outfit(_doc(20), now="t")  # 상의+하의 기본
+    assert row["is_complete"] == 1
+
+
+def test_parse_incomplete_top_only() -> None:
+    row = build_db.parse_outfit(_doc(21, bottom_cat=None), now="t")  # 상의만
+    assert row["is_complete"] == 0
+
+
+def test_parse_complete_dress_only() -> None:
+    # 상·하 없이 원피스만 있어도 완성
+    doc = _doc(22, top_cat=None, bottom_cat=None)
+    doc["데이터셋 정보"]["데이터셋 상세설명"]["라벨링"]["원피스"] = [
+        {"카테고리": "드레스"}
+    ]
+    row = build_db.parse_outfit(doc, now="t")
+    assert row["is_complete"] == 1
+
+
+def test_build_persists_is_complete(tmp_path) -> None:
+    root = tmp_path / "labels"
+    _write(root, "모던", 1)                    # 상의+하의 → 완성
+    _write(root, "모던", 2, bottom_cat=None)   # 상의만 → 불완전
+    dest = tmp_path / "out.db"
+    build_db.build(root, dest, url_base="https://b")
+    conn = sqlite3.connect(dest)
+    got = dict(conn.execute("SELECT id, is_complete FROM outfits").fetchall())
+    assert got == {"1": 1, "2": 0}
+
+
 def test_build_strict_raises(tmp_path) -> None:
     root = tmp_path / "labels"
     d = root / "모던"
