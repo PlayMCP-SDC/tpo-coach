@@ -12,6 +12,7 @@ import sqlite3
 from pathlib import Path
 from typing import Protocol
 
+from playmcp_server.db.season import season_where
 from playmcp_server.models import Outfit
 
 
@@ -29,7 +30,9 @@ class OutfitRepository(Protocol):
         limit: int = 20,
     ) -> list[Outfit]: ...
 
-    def sample_outfits(self, *, style: str, n: int) -> list[Outfit]: ...
+    def sample_outfits(
+        self, *, style: str, n: int, season: str | None = None
+    ) -> list[Outfit]: ...
 
 
 def _outfit(row: sqlite3.Row) -> Outfit:
@@ -40,12 +43,23 @@ def _outfit(row: sqlite3.Row) -> Outfit:
         substyle=row["substyle"],
         top_category=row["top_category"],
         top_length=row["top_length"],
+        top_sleeve=row["top_sleeve"],
+        top_material=row["top_material"],
+        top_warmth=row["top_warmth"],
         bottom_category=row["bottom_category"],
         bottom_length=row["bottom_length"],
+        bottom_material=row["bottom_material"],
+        bottom_warmth=row["bottom_warmth"],
         outer_category=row["outer_category"],
         outer_length=row["outer_length"],
+        outer_sleeve=row["outer_sleeve"],
+        outer_material=row["outer_material"],
+        outer_warmth=row["outer_warmth"],
         dress_category=row["dress_category"],
         dress_length=row["dress_length"],
+        dress_sleeve=row["dress_sleeve"],
+        dress_material=row["dress_material"],
+        dress_warmth=row["dress_warmth"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         deleted_at=row["deleted_at"],
@@ -97,14 +111,22 @@ class SQLiteOutfitRepository:
         params.append(limit)
         return [_outfit(r) for r in self._conn.execute(sql, params)]
 
-    def sample_outfits(self, *, style: str, n: int) -> list[Outfit]:
+    def sample_outfits(
+        self, *, style: str, n: int, season: str | None = None
+    ) -> list[Outfit]:
         # SQLite 는 음수 LIMIT 을 "무제한"으로 취급하므로, 호출자(Protocol)를
         # 신뢰하지 않고 여기서도 0 이상으로 한 번 더 막아준다(방어적 클램프).
+        where = "style = ? AND deleted_at IS NULL"
+        params: list[object] = [style]
+        if season:
+            frag, sp = season_where(season)
+            if frag:
+                where += " AND " + frag
+                params.extend(sp)
+        params.append(max(0, n))
         rows = self._conn.execute(
-            "SELECT * FROM outfits "
-            "WHERE style = ? AND deleted_at IS NULL "
-            "ORDER BY RANDOM() LIMIT ?",
-            (style, max(0, n)),
+            f"SELECT * FROM outfits WHERE {where} ORDER BY RANDOM() LIMIT ?",
+            params,
         )
         return [_outfit(r) for r in rows]
 
