@@ -57,12 +57,14 @@ _INSERT = (
     "bottom_category,bottom_length,bottom_material,bottom_warmth,"
     "outer_category,outer_length,outer_sleeve,outer_material,outer_warmth,"
     "dress_category,dress_length,dress_sleeve,dress_material,dress_warmth,"
+    "is_complete,"
     "created_at,updated_at,deleted_at) "
     "VALUES (:id,:image_url,:style,:substyle,"
     ":top_category,:top_length,:top_sleeve,:top_material,:top_warmth,"
     ":bottom_category,:bottom_length,:bottom_material,:bottom_warmth,"
     ":outer_category,:outer_length,:outer_sleeve,:outer_material,:outer_warmth,"
     ":dress_category,:dress_length,:dress_sleeve,:dress_material,:dress_warmth,"
+    ":is_complete,"
     ":created_at,:updated_at,NULL)"
 )
 
@@ -174,6 +176,11 @@ def parse_outfit(doc: dict, *, now: str, url_base: str = "") -> dict:
             if sleeve is not None and sleeve not in SLEEVES:
                 raise ParseError(f"{part} 소매기장 미등록: {sleeve!r}")
             row[f"{prefix}_sleeve"] = sleeve
+    # 완성 코디: 원피스 有 or (상의 有 AND 하의 有). 미래 스토리지 정리용으로도 저장.
+    row["is_complete"] = int(
+        row["dress_category"] is not None
+        or (row["top_category"] is not None and row["bottom_category"] is not None)
+    )
     # dedupe 키(INSERT 시 무시되는 부가 키). 전체 라벨 기준.
     row["_sig"] = _label_signature(lab)
     return row

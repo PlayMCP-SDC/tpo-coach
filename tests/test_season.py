@@ -5,7 +5,13 @@ import sqlite3
 import pytest
 
 from playmcp_server.db import schema
-from playmcp_server.db.season import SEASONS, season_where
+from playmcp_server.db.season import (
+    SEASONS,
+    _summer_score,
+    _winter_score,
+    season_order_by,
+    season_where,
+)
 
 
 @pytest.fixture
@@ -48,13 +54,16 @@ def test_summer_excludes_warm_coat_maxi(db) -> None:
 
 
 def test_winter_excludes_cool_sleeveless_mini_bratop(db) -> None:
-    _insert(db, "ok", top_warmth="따뜻", top_sleeve="긴팔")
+    _insert(db, "ok", top_warmth="따뜻", top_sleeve="긴팔", bottom_length="발목")
     _insert(db, "cool", top_warmth="시원")             # 시원 → 탈락
     _insert(db, "sleeve", top_sleeve="반팔")           # 반팔 → 탈락
     _insert(db, "mini", dress_length="미니")           # 미니 → 탈락
     _insert(db, "bra", top_category="브라탑")          # 브라탑 → 탈락
+    _insert(db, "midi", bottom_length="미디")          # (v2) 미디 하의 → 탈락
+    _insert(db, "knee", dress_length="니렝스")         # (v2) 니렝스 원피스 → 탈락
+    _insert(db, "maxi", bottom_length="맥시")          # 맥시 하의 → 통과
     db.commit()
-    assert _kept(db, "겨울") == {"ok"}
+    assert _kept(db, "겨울") == {"ok", "maxi"}
 
 
 def test_springfall_only_excludes_padding(db) -> None:
@@ -70,3 +79,40 @@ def test_unknown_season_no_filter(db) -> None:
     db.commit()
     assert season_where("겨울잠") == ("", [])
     assert _kept(db, "겨울잠") == {"a"}
+
+
+def _score(db, expr, **cols):
+    keys = ["id", "image_url", "style", *cols.keys()]
+    ph = ",".join("?" * len(keys))
+    db.execute(
+        f"INSERT INTO outfits ({','.join(keys)}) VALUES ({ph})",
+        ["s", "u/s", "모던", *cols.values()],
+    )
+    val = db.execute(f"SELECT {expr} FROM outfits WHERE id='s'").fetchone()[0]
+    db.execute("DELETE FROM outfits WHERE id='s'")
+    return val
+
+
+def test_summer_score_values(db) -> None:
+    e = _summer_score()
+    assert _score(db, e, top_sleeve="반팔") == 1.0
+    assert _score(db, e, top_sleeve="민소매") == 1.0
+    assert _score(db, e, top_sleeve="캡") == 1.0
+    assert _score(db, e, top_sleeve="긴팔") == 0.0
+    assert _score(db, e, top_sleeve=None) == 0.0
+
+
+def test_winter_score_values(db) -> None:
+    e = _winter_score()
+    assert _score(db, e, top_length="롱") == 1.0
+    assert _score(db, e, top_length="노멀") == 0.5
+    assert _score(db, e, outer_length="롱", top_length="노멀") == 1.0  # MAX
+    assert _score(db, e, top_length="크롭") == 0.0
+    assert _score(db, e) == 0.0
+
+
+def test_order_by_only_summer_winter() -> None:
+    assert season_order_by("봄가을") == ("", [])
+    assert season_order_by("없는계절") == ("", [])
+    sql, params = season_order_by("여름")
+    assert params == [0.85] and "?" in sql

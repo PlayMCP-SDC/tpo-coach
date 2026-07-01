@@ -201,6 +201,32 @@ def test_sample_no_season_returns_all() -> None:
     assert got == {"a", "b"}
 
 
+def test_sample_excludes_incomplete() -> None:
+    repo = _repo_with([
+        {"_id": "keep", "is_complete": 1},
+        {"_id": "null_ok"},                 # is_complete 미지정(NULL) → 통과
+        {"_id": "drop", "is_complete": 0},  # 불완전 → 제외
+    ])
+    got = {o.id for o in repo.sample_outfits(style="모던", n=10)}
+    assert got == {"keep", "null_ok"}
+
+
+def test_summer_prefers_short_sleeve_strongly() -> None:
+    # 반팔(선호)·긴팔(비선호) 각 20건, 모두 완성. n=1 을 여러 번 뽑아 반팔이 지배적인지.
+    rows = []
+    for i in range(20):
+        rows.append({"_id": f"s{i}", "top_sleeve": "반팔", "is_complete": 1})
+        rows.append({"_id": f"l{i}", "top_sleeve": "긴팔", "is_complete": 1})
+    repo = _repo_with(rows)
+    short = sum(
+        1
+        for _ in range(100)
+        if repo.sample_outfits(style="모던", n=1, season="여름")[0].top_sleeve
+        == "반팔"
+    )
+    assert short >= 80, f"반팔 선택 {short}/100 — 편향 약함"
+
+
 def test_outfit_maps_new_columns() -> None:
     repo = _repo_with([
         {"_id": "z", "top_sleeve": "반팔",
