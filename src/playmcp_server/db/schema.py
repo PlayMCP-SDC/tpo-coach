@@ -18,11 +18,16 @@ CREATE TABLE IF NOT EXISTS outfits (
     style       TEXT NOT NULL,      -- 스타일 (STYLES)
     substyle    TEXT,               -- 서브스타일 (SUBSTYLES)
 
-    -- 구성: 부위별 카테고리 + 기장 (없는 부위는 NULL)
-    top_category     TEXT,   top_length     TEXT,   -- 상의
-    bottom_category  TEXT,   bottom_length  TEXT,   -- 하의
-    outer_category   TEXT,   outer_length   TEXT,   -- 아우터
-    dress_category   TEXT,   dress_length   TEXT,   -- 원피스
+    -- 구성: 부위별 카테고리 + 기장 + 소매기장 + 소재(원값) + 보온등급(파생).
+    -- sleeve 는 상의/아우터/원피스만(하의엔 소매기장 없음).
+    top_category    TEXT, top_length    TEXT, top_sleeve  TEXT,
+    top_material    TEXT, top_warmth    TEXT,
+    bottom_category TEXT, bottom_length TEXT,
+    bottom_material TEXT, bottom_warmth TEXT,
+    outer_category  TEXT, outer_length  TEXT, outer_sleeve TEXT,
+    outer_material  TEXT, outer_warmth  TEXT,
+    dress_category  TEXT, dress_length  TEXT, dress_sleeve TEXT,
+    dress_material  TEXT, dress_warmth  TEXT,
 
     created_at  TEXT,               -- 파일 생성일자(JSON)
     updated_at  TEXT,               -- 마지막 변경 시각

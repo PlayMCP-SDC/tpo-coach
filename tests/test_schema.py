@@ -38,3 +38,16 @@ def test_init_schema_is_idempotent() -> None:
         "SELECT COUNT(*) FROM sqlite_master WHERE name='outfits'"
     ).fetchone()[0]
     assert n == 1
+
+
+def test_schema_has_season_columns() -> None:
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(outfits)")}
+    for c in (
+        "top_sleeve", "outer_sleeve", "dress_sleeve",
+        "top_material", "bottom_material", "outer_material", "dress_material",
+        "top_warmth", "bottom_warmth", "outer_warmth", "dress_warmth",
+    ):
+        assert c in cols, f"컬럼 누락: {c}"
+    assert "bottom_sleeve" not in cols  # 하의엔 소매기장 없음

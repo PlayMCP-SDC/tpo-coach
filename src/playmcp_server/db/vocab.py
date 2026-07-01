@@ -52,3 +52,51 @@ def normalize_length(raw: str | None) -> str | None:
         return None
     v = raw.strip()
     return LENGTH_ALIASES.get(v, v) or None
+
+
+# 소매기장 정규 어휘 6종 (라벨링.{부위}.소매기장). 하의엔 없음.
+SLEEVES: frozenset[str] = frozenset(
+    {"긴팔", "반팔", "7부소매", "민소매", "없음", "캡"}
+)
+
+# 소재 정규 어휘 25종 (라벨링.{부위}.소재). 리스트(다중값)로 라벨됨.
+MATERIALS: frozenset[str] = frozenset(
+    {
+        "우븐", "울/캐시미어", "니트", "저지", "데님", "트위드", "린넨", "시폰",
+        "퍼", "실크", "자카드", "가죽", "스판덱스", "플리스", "코듀로이", "패딩",
+        "레이스", "스웨이드", "헤어 니트", "벨벳", "네오프렌", "메시", "무스탕",
+        "비닐/PVC", "시퀸/글리터",
+    }
+)
+
+# 보온등급 3종.
+WARMTH_LEVELS: frozenset[str] = frozenset({"따뜻", "시원", "중립"})
+
+# 소재 → 보온등급. 근거: docs/idea/weather_role.md 매핑표.
+_MATERIAL_WARMTH: dict[str, str] = {
+    # 따뜻 (겨울/가을)
+    "울/캐시미어": "따뜻", "트위드": "따뜻", "퍼": "따뜻", "무스탕": "따뜻",
+    "플리스": "따뜻", "패딩": "따뜻", "코듀로이": "따뜻", "스웨이드": "따뜻",
+    "헤어 니트": "따뜻", "벨벳": "따뜻", "네오프렌": "따뜻", "가죽": "따뜻",
+    # 시원 (여름)
+    "린넨": "시원", "시폰": "시원", "메시": "시원", "레이스": "시원", "실크": "시원",
+    # 중립 (사계절)
+    "우븐": "중립", "니트": "중립", "저지": "중립", "데님": "중립",
+    "스판덱스": "중립", "자카드": "중립", "시퀸/글리터": "중립", "비닐/PVC": "중립",
+}
+
+
+def warmth_of(materials: list[str] | None) -> str | None:
+    """소재 리스트 → 보온등급. 우선순위 따뜻 > 시원 > 중립. 빈/None 이면 None.
+
+    미등록 소재는 등급이 없어 무시된다(빌드에서 별도 검증). 알려진 소재가
+    하나도 안 남으면 '중립'.
+    """
+    if not materials:
+        return None
+    grades = {_MATERIAL_WARMTH.get(m) for m in materials}
+    if "따뜻" in grades:
+        return "따뜻"
+    if "시원" in grades:
+        return "시원"
+    return "중립"

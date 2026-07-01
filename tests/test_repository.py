@@ -146,3 +146,67 @@ def test_sample_outfits_returns_outfit_objects(repo: SQLiteOutfitRepository) -> 
 def test_sample_outfits_negative_n_returns_empty(repo: SQLiteOutfitRepository) -> None:
     # 음수 n 은 SQLite 에서 무제한(LIMIT -1)이 되므로 0 으로 막아 빈 결과를 보장한다
     assert repo.sample_outfits(style="모던", n=-1) == []
+
+
+def test_outfit_has_season_fields() -> None:
+    from playmcp_server.models import Outfit
+
+    o = Outfit(
+        id="x", image_url="u", style="모던",
+        top_sleeve="반팔", top_material="린넨", top_warmth="시원",
+        bottom_warmth="중립",
+    )
+    assert o.top_sleeve == "반팔"
+    assert o.top_material == "린넨"
+    assert o.top_warmth == "시원"
+    assert o.outer_sleeve is None  # 기본값 None
+    assert o.dress_warmth is None
+
+
+def _repo_with(rows):
+    import sqlite3
+
+    from playmcp_server.db import schema
+    from playmcp_server.db.repository import SQLiteOutfitRepository
+
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    for r in rows:
+        cols = {k: v for k, v in r.items() if k != "_id"}
+        keys = ["id", "image_url", "style", *cols.keys()]
+        ph = ",".join("?" * len(keys))
+        conn.execute(
+            f"INSERT INTO outfits ({','.join(keys)}) VALUES ({ph})",
+            [r["_id"], f"u/{r['_id']}", "모던", *cols.values()],
+        )
+    conn.commit()
+    return SQLiteOutfitRepository(conn)
+
+
+def test_sample_applies_season_filter() -> None:
+    repo = _repo_with([
+        {"_id": "keep", "bottom_length": "미디"},
+        {"_id": "drop", "bottom_length": "맥시"},   # 여름 배제
+    ])
+    got = {o.id for o in repo.sample_outfits(style="모던", n=10, season="여름")}
+    assert got == {"keep"}
+
+
+def test_sample_no_season_returns_all() -> None:
+    repo = _repo_with([
+        {"_id": "a", "bottom_length": "맥시"},
+        {"_id": "b", "bottom_length": "미디"},
+    ])
+    got = {o.id for o in repo.sample_outfits(style="모던", n=10)}
+    assert got == {"a", "b"}
+
+
+def test_outfit_maps_new_columns() -> None:
+    repo = _repo_with([
+        {"_id": "z", "top_sleeve": "반팔",
+         "top_material": "린넨", "top_warmth": "시원"},
+    ])
+    o = repo.sample_outfits(style="모던", n=1)[0]
+    assert o.top_sleeve == "반팔"
+    assert o.top_material == "린넨"
+    assert o.top_warmth == "시원"
