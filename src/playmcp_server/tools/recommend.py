@@ -14,7 +14,6 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from playmcp_server.db.repository import get_repository
-from playmcp_server.db.season import SEASONS
 from playmcp_server.db.vocab import STYLES
 from playmcp_server.models import Outfit
 
@@ -30,7 +29,6 @@ def _clamp_n(n: int) -> int:
 
 _STYLE_LIST = sorted(STYLES)  # 23종 — 설명·스키마·안내 공용 단일 출처
 _SEASON_LIST = ["봄가을", "여름", "겨울"]  # enum·설명 공용 단일 출처
-assert set(_SEASON_LIST) == SEASONS  # season.py 와 어긋나지 않도록 가드
 
 
 def _normalize_styles(styles: list[str]) -> list[str]:

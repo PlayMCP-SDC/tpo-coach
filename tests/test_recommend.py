@@ -19,6 +19,13 @@ from playmcp_server.tools.recommend import (
 )
 
 
+def test_season_list_matches_canonical() -> None:
+    from playmcp_server.db.season import SEASONS
+    from playmcp_server.tools.recommend import _SEASON_LIST
+
+    assert set(_SEASON_LIST) == SEASONS
+
+
 def test_clamp_n_bounds() -> None:
     assert _clamp_n(0) == 1
     assert _clamp_n(1) == 1
