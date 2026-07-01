@@ -7,9 +7,11 @@ DB 의 K-Fashion 셋업을 style 로 무작위 표본 추출해 이미지 URL �
 from __future__ import annotations
 
 from itertools import zip_longest
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from playmcp_server.db.repository import get_repository
 from playmcp_server.db.vocab import STYLES
@@ -138,22 +140,39 @@ def register_tools(mcp: FastMCP) -> None:
         )
     )
     def recommend_outfits_by_situation(
-        situation: str, style: str, n: int = _N_DEFAULT
+        situation: str,
+        styles: Annotated[
+            list[str],
+            Field(
+                description=(
+                    "Styles that fit the situation, ordered by best fit first. "
+                    "You MUST choose ONLY from these 23 supported Korean styles: "
+                    + ", ".join(_STYLE_LIST)
+                ),
+            ),
+        ],
+        n: int = _N_DEFAULT,
     ) -> str:
-        """Recommends outfit sets (코디) for a situation for TPO Coach(티피오 코치).
+        """Recommends varied outfit sets (코디) for a situation for TPO Coach(티피오
+        코치).
 
-        Given a free-text situation, infer the single most fitting style from the
-        supported Korean styles and pass it as `style`; the tool then samples up to
-        n random outfits of that style. The situation is echoed in the response
-        heading. If the style is unsupported, the valid style list is returned.
+        Given a free-text situation, infer the Korean styles that fit it (ordered by
+        best fit) and pass them as `styles`, choosing ONLY from the supported styles
+        listed in the `styles` parameter. The tool samples random outfits across those
+        styles (round-robin) so the results span different styles. The situation and the
+        styles used are echoed in the heading. Unsupported styles are ignored; if none
+        are valid, the valid style list is returned.
 
         Args:
             situation: User's situation in free text (e.g. "주말 소개팅"). Echoed only.
-            style: Supported style inferred from the situation (e.g. 로맨틱, 클래식).
+            styles: Supported styles fitting the situation, best fit first (1개 이상).
             n: Number of outfits to recommend. Clamped to 1-10, default 3.
 
         Returns:
-            Markdown: situation/style heading + recommended outfits.
+            Markdown: situation/styles heading + recommended outfits across styles.
         """
-        header = f"**{situation}**에 어울리는 **{style}** 코디 추천"
-        return _recommend([style], n, header=header)
+        used = _normalize_styles(styles)
+        label = " · ".join(used)
+        suffix = f" ({label})" if label else ""
+        header = f"**{situation}**에 어울리는 코디 추천" + suffix
+        return _recommend(styles, n, header=header)

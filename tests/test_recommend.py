@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from playmcp_server.db import repository, schema
+from playmcp_server.db.vocab import STYLES
 from playmcp_server.models import Outfit
 from playmcp_server.tools.recommend import (
     _clamp_n,
@@ -111,16 +112,49 @@ async def test_by_style_invalid_style_lists_options(
 
 
 @pytest.mark.asyncio
-async def test_by_situation_echoes_situation_and_style(
-    small_db, client_session
-) -> None:
+async def test_by_situation_multi_style_distributes(small_db, client_session) -> None:
     async with client_session() as client:
         res = await client.call_tool(
             "recommend_outfits_by_situation",
-            {"situation": "주말 소개팅", "style": "로맨틱"},
+            {"situation": "주말 소개팅", "styles": ["로맨틱", "스트리트"], "n": 3},
         )
     text = res.content[0].text
-    assert "주말 소개팅" in text and "로맨틱" in text
+    assert "주말 소개팅" in text          # 상황 echo
+    assert "로맨틱" in text and "스트리트" in text  # 사용 스타일 표기 + 코디 다양성
+    assert text.count("![코디]") == 3
+
+
+@pytest.mark.asyncio
+async def test_by_situation_filters_invalid_styles(small_db, client_session) -> None:
+    async with client_session() as client:
+        res = await client.call_tool(
+            "recommend_outfits_by_situation",
+            {"situation": "여행", "styles": ["로맨틱", "없는거"], "n": 3},
+        )
+    text = res.content[0].text
+    assert "지원하는 스타일이 없습니다" not in text  # 유효분(로맨틱)으로 진행
+    assert "![코디]" in text
+
+
+@pytest.mark.asyncio
+async def test_by_situation_all_invalid_guides(small_db, client_session) -> None:
+    async with client_session() as client:
+        res = await client.call_tool(
+            "recommend_outfits_by_situation",
+            {"situation": "여행", "styles": ["xx", "yy"]},
+        )
+    text = res.content[0].text
+    assert "지원하는 스타일이 없습니다" in text and "스트리트" in text
+
+
+@pytest.mark.asyncio
+async def test_by_situation_description_lists_all_styles(client_session) -> None:
+    async with client_session() as client:
+        tools = (await client.list_tools()).tools
+    tool = next(t for t in tools if t.name == "recommend_outfits_by_situation")
+    desc = tool.inputSchema["properties"]["styles"].get("description", "")
+    for s in STYLES:
+        assert s in desc, f"styles 설명에 '{s}' 누락"
 
 
 @pytest.mark.asyncio
