@@ -158,6 +158,15 @@ async def test_by_situation_description_lists_all_styles(client_session) -> None
 
 
 @pytest.mark.asyncio
+async def test_by_situation_schema_advertises_style_enum(client_session) -> None:
+    async with client_session() as client:
+        tools = (await client.list_tools()).tools
+    tool = next(t for t in tools if t.name == "recommend_outfits_by_situation")
+    items = tool.inputSchema["properties"]["styles"]["items"]
+    assert set(items.get("enum", [])) == set(STYLES)
+
+
+@pytest.mark.asyncio
 async def test_tools_listed_with_honest_annotations(
     small_db, client_session
 ) -> None:

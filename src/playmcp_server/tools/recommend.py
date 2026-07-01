@@ -149,6 +149,7 @@ def register_tools(mcp: FastMCP) -> None:
                     "You MUST choose ONLY from these 23 supported Korean styles: "
                     + ", ".join(_STYLE_LIST)
                 ),
+                json_schema_extra={"items": {"type": "string", "enum": _STYLE_LIST}},
             ),
         ],
         n: int = _N_DEFAULT,
