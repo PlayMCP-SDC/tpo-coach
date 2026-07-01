@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS outfits (
     dress_category  TEXT, dress_length  TEXT, dress_sleeve TEXT,
     dress_material  TEXT, dress_warmth  TEXT,
 
+    is_complete INTEGER,            -- 완성 코디 여부(원피스 or 상의+하의)
+
     created_at  TEXT,               -- 파일 생성일자(JSON)
     updated_at  TEXT,               -- 마지막 변경 시각
     deleted_at  TEXT                -- soft delete (NULL = 활성)

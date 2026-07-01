@@ -51,3 +51,11 @@ def test_schema_has_season_columns() -> None:
     ):
         assert c in cols, f"컬럼 누락: {c}"
     assert "bottom_sleeve" not in cols  # 하의엔 소매기장 없음
+
+
+def test_schema_has_is_complete_column() -> None:
+    conn = sqlite3.connect(":memory:")
+    schema.init_schema(conn)
+    cols = {r[1]: r[2] for r in conn.execute("PRAGMA table_info(outfits)")}
+    assert "is_complete" in cols
+    assert cols["is_complete"] == "INTEGER"
