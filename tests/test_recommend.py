@@ -245,3 +245,35 @@ def test_interleave_round_robin() -> None:
 def test_interleave_skips_empty_pool() -> None:
     a = [_mk("a0", "모던")]
     assert [o.id for o in _interleave([[], a])] == ["a0"]
+
+
+def test_recommend_passes_season(monkeypatch) -> None:
+    # _recommend 가 season 을 sample_outfits 로 그대로 넘기는지 확인
+    from playmcp_server.tools import recommend as rec
+
+    seen = {}
+
+    class _Fake:
+        def sample_outfits(self, *, style, n, season=None):
+            seen["season"] = season
+            return [Outfit(id="a", image_url="u/a", style=style)]
+
+    monkeypatch.setattr(rec, "get_repository", lambda: _Fake())
+    out = rec._recommend(
+        ["모던"], 1, title="", label_styles=False, season="여름"
+    )
+    assert seen["season"] == "여름"
+    assert "![코디]" in out
+
+
+@pytest.mark.asyncio
+async def test_by_situation_accepts_season(small_db, client_session) -> None:
+    async with client_session() as client:
+        res = await client.call_tool(
+            "recommend_outfits_by_situation",
+            {"situation": "여름 소개팅", "styles": ["로맨틱"],
+             "n": 2, "season": "여름"},
+        )
+    text = res.content[0].text
+    # 여름 필터로도 결과가 나옴(small_db 는 기장/보온 결측→통과)
+    assert "![코디]" in text

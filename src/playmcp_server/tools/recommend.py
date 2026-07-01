@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from playmcp_server.db.repository import get_repository
+from playmcp_server.db.season import SEASONS
 from playmcp_server.db.vocab import STYLES
 from playmcp_server.models import Outfit
 
@@ -28,6 +29,8 @@ def _clamp_n(n: int) -> int:
 
 
 _STYLE_LIST = sorted(STYLES)  # 23종 — 설명·스키마·안내 공용 단일 출처
+_SEASON_LIST = ["봄가을", "여름", "겨울"]  # enum·설명 공용 단일 출처
+assert set(_SEASON_LIST) == SEASONS  # season.py 와 어긋나지 않도록 가드
 
 
 def _normalize_styles(styles: list[str]) -> list[str]:
@@ -84,23 +87,30 @@ def _format_outfit(o: Outfit) -> str:
 
 
 def _recommend(
-    styles: list[str], n: int, *, title: str, label_styles: bool
+    styles: list[str],
+    n: int,
+    *,
+    title: str,
+    label_styles: bool,
+    season: str | None = None,
 ) -> str:
     """styles 정규화 → 스타일별 무작위 표본 → 라운드로빈 → 마크다운.
 
-    유효 스타일이 하나도 없으면 안내 문자열을 돌려준다(추천 안 함). title 은 결과
-    머리말이며, label_styles=True 면 잘라낸 뒤 실제 결과에 등장한 스타일들만
-    머리말에 덧붙인다(후보가 아니라 실제 사용 스타일).
+    season 이 지정되면 계절 하드 필터를 적용한다(미지원 값은 무시). 유효 스타일이
+    하나도 없으면 안내 문자열을 돌려준다(추천 안 함). label_styles=True 면 실제
+    결과에 등장한 스타일들만 머리말에 덧붙인다.
     """
     valid = _normalize_styles(styles)
     if not valid:
         return _no_valid_styles_msg(styles)
     k = _clamp_n(n)
     repo = get_repository()
-    pools = [repo.sample_outfits(style=s, n=k) for s in valid]
+    pools = [
+        repo.sample_outfits(style=s, n=k, season=season) for s in valid
+    ]
     outfits = _interleave(pools)[:k]
     if not outfits:
-        return "해당 스타일의 코디를 찾지 못했습니다. 다른 스타일로 시도해 보세요."
+        return "해당 조건의 코디를 찾지 못했습니다. 다른 스타일/계절로 시도해 보세요."
     header = title
     if label_styles:
         used = list(dict.fromkeys(o.style for o in outfits))
@@ -121,22 +131,27 @@ def register_tools(mcp: FastMCP) -> None:
             openWorldHint=False,  # 로컬 DB·외부 호출 없음
         )
     )
-    def recommend_outfits_by_style(style: str, n: int = _N_DEFAULT) -> str:
+    def recommend_outfits_by_style(
+        style: str, n: int = _N_DEFAULT, season: str | None = None
+    ) -> str:
         """Recommends outfit sets (코디) of a given style for TPO Coach(티피오 코치).
 
         Samples up to n random outfit coordinations of the requested style from
-        the K-Fashion reference set and returns them as image-URL markdown. If the
-        style is not supported, the valid style list is returned instead.
+        the K-Fashion reference set and returns them as image-URL markdown. If a
+        season is given, coordinations unsuitable for it are hard-filtered out. If
+        the style is not supported, the valid style list is returned instead.
 
         Args:
             style: One of the supported Korean styles (e.g. 클래식, 스트리트, 로맨틱).
             n: Number of outfits to recommend. Clamped to 1-10, default 3.
+            season: Optional Korean season, one of 봄가을·여름·겨울. Others ignored.
 
         Returns:
             Markdown listing recommended outfits (image, style, composition).
         """
         return _recommend(
-            [style], n, title=f"**{style}** 스타일 코디 추천", label_styles=False
+            [style], n, title=f"**{style}** 스타일 코디 추천",
+            label_styles=False, season=season,
         )
 
     @mcp.tool(
@@ -162,24 +177,38 @@ def register_tools(mcp: FastMCP) -> None:
             ),
         ],
         n: int = _N_DEFAULT,
+        season: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Season inferred from the situation, if any. Choose ONLY from: "
+                    + ", ".join(_SEASON_LIST)
+                    + ". Omit if the situation implies no particular season."
+                ),
+                json_schema_extra={"enum": [*_SEASON_LIST, None]},
+            ),
+        ] = None,
     ) -> str:
         """Recommends varied outfit sets (코디) for a situation for TPO Coach(티피오
         코치).
 
         Given a free-text situation, infer the Korean styles that fit it (ordered by
-        best fit) and pass them as `styles`, choosing ONLY from the supported styles
-        listed in the `styles` parameter. The tool samples random outfits across those
-        styles (round-robin) so the results span different styles. The situation and the
-        styles used are echoed in the heading. Unsupported styles are ignored; if none
-        are valid, the valid style list is returned.
+        best fit) and pass them as `styles`, choosing ONLY from the supported styles.
+        If the situation implies a season, pass `season` (봄가을·여름·겨울) so
+        season-inappropriate coordinations are hard-filtered out. The tool samples
+        random outfits across the styles (round-robin). Unsupported styles are
+        ignored; if none are valid, the valid style list is returned.
 
         Args:
-            situation: User's situation in free text (e.g. "주말 소개팅"). Echoed only.
+            situation: User's situation in free text (e.g. "여름 소개팅"). Echoed only.
             styles: Supported styles fitting the situation, best fit first (1개 이상).
             n: Number of outfits to recommend. Clamped to 1-10, default 3.
+            season: Optional Korean season (봄가을·여름·겨울) to hard-filter by.
 
         Returns:
             Markdown: situation/styles heading + recommended outfits across styles.
         """
         title = f"**{situation}**에 어울리는 코디 추천"
-        return _recommend(styles, n, title=title, label_styles=True)
+        return _recommend(
+            styles, n, title=title, label_styles=True, season=season
+        )
