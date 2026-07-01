@@ -146,3 +146,18 @@ def test_sample_outfits_returns_outfit_objects(repo: SQLiteOutfitRepository) -> 
 def test_sample_outfits_negative_n_returns_empty(repo: SQLiteOutfitRepository) -> None:
     # 음수 n 은 SQLite 에서 무제한(LIMIT -1)이 되므로 0 으로 막아 빈 결과를 보장한다
     assert repo.sample_outfits(style="모던", n=-1) == []
+
+
+def test_outfit_has_season_fields() -> None:
+    from playmcp_server.models import Outfit
+
+    o = Outfit(
+        id="x", image_url="u", style="모던",
+        top_sleeve="반팔", top_material="린넨", top_warmth="시원",
+        bottom_warmth="중립",
+    )
+    assert o.top_sleeve == "반팔"
+    assert o.top_material == "린넨"
+    assert o.top_warmth == "시원"
+    assert o.outer_sleeve is None  # 기본값 None
+    assert o.dress_warmth is None
