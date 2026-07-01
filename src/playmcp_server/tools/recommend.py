@@ -25,14 +25,6 @@ def _clamp_n(n: int) -> int:
     return max(_N_MIN, min(_N_MAX, n))
 
 
-def _invalid_style_msg(style: str) -> str:
-    """무효 스타일 입력에 유효 스타일 목록을 안내한다."""
-    return (
-        f"'{style}' 은(는) 지원하지 않는 스타일입니다. "
-        f"가능한 스타일: {', '.join(sorted(STYLES))}"
-    )
-
-
 _STYLE_LIST = sorted(STYLES)  # 23종 — 설명·스키마·안내 공용 단일 출처
 
 
@@ -89,16 +81,21 @@ def _format_outfit(o: Outfit) -> str:
     )
 
 
-def _recommend(style: str, n: int, header: str | None) -> str:
-    """style 검증 → 무작위 표본 → 마크다운 렌더. header 있으면 맨 위에 붙인다."""
-    if style not in STYLES:
-        return _invalid_style_msg(style)
-    outfits = get_repository().sample_outfits(style=style, n=_clamp_n(n))
+def _recommend(styles: list[str], n: int, header: str | None) -> str:
+    """styles 정규화 → 스타일별 무작위 표본 → 라운드로빈 → 마크다운.
+
+    유효 스타일이 하나도 없으면 안내 문자열을 돌려준다(추천 안 함).
+    header 가 있으면 결과 맨 위에 붙인다.
+    """
+    valid = _normalize_styles(styles)
+    if not valid:
+        return _no_valid_styles_msg(styles)
+    k = _clamp_n(n)
+    repo = get_repository()
+    pools = [repo.sample_outfits(style=s, n=k) for s in valid]
+    outfits = _interleave(pools)[:k]
     if not outfits:
-        return (
-            f"'{style}' 스타일의 코디를 찾지 못했습니다. "
-            "다른 스타일로 시도해 보세요."
-        )
+        return "해당 스타일의 코디를 찾지 못했습니다. 다른 스타일로 시도해 보세요."
     body = "\n\n".join(_format_outfit(o) for o in outfits)
     return f"{header}\n\n{body}" if header else body
 
@@ -129,7 +126,7 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Markdown listing recommended outfits (image, style, composition).
         """
-        return _recommend(style, n, header=f"**{style}** 스타일 코디 추천")
+        return _recommend([style], n, header=f"**{style}** 스타일 코디 추천")
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -159,4 +156,4 @@ def register_tools(mcp: FastMCP) -> None:
             Markdown: situation/style heading + recommended outfits.
         """
         header = f"**{situation}**에 어울리는 **{style}** 코디 추천"
-        return _recommend(style, n, header=header)
+        return _recommend([style], n, header=header)

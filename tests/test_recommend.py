@@ -12,9 +12,9 @@ from playmcp_server.tools.recommend import (
     _clamp_n,
     _format_outfit,
     _interleave,
-    _invalid_style_msg,
     _no_valid_styles_msg,
     _normalize_styles,
+    _recommend,
 )
 
 
@@ -24,13 +24,6 @@ def test_clamp_n_bounds() -> None:
     assert _clamp_n(3) == 3
     assert _clamp_n(10) == 10
     assert _clamp_n(999) == 10
-
-
-def test_invalid_style_msg_lists_valid_styles() -> None:
-    msg = _invalid_style_msg("없는스타일")
-    assert "없는스타일" in msg
-    # 유효 스타일 목록을 안내한다
-    assert "클래식" in msg and "스트리트" in msg
 
 
 def test_format_outfit_has_image_and_parts() -> None:
@@ -79,6 +72,19 @@ def small_db(tmp_path, monkeypatch):
     repository.reset_repository()
     yield
     repository.reset_repository()
+
+
+def test_recommend_two_styles_distributes(small_db) -> None:
+    # small_db: 로맨틱 a·b(2건) + 스트리트 c(1건)
+    out = _recommend(["로맨틱", "스트리트"], 3, header=None)
+    assert out.count("![코디]") == 3  # 총 3개
+    assert "https://img/c.jpg" in out  # 스트리트도 포함(단일이면 안 나옴)
+
+
+def test_recommend_all_invalid_returns_guidance(small_db) -> None:
+    out = _recommend(["xx", "yy"], 3, header=None)
+    assert "지원하는 스타일이 없습니다" in out
+    assert "스트리트" in out
 
 
 @pytest.mark.asyncio
