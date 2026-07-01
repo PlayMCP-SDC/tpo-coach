@@ -7,7 +7,8 @@ CLI:  python -m playmcp_server.db.build_db --src <라벨링데이터 루트> [--
 출력:       data/clothing.db (테이블 outfits)
 
 한 JSON = 한 셋업(코디) = outfits 한 행. 부위(상의/하의/아우터/원피스)별
-카테고리·기장만 추출하고, 좌표·색상·소재 등 나머지는 버린다.
+카테고리·기장·소매기장·소재를 추출하고(소재→보온등급 파생), 좌표·색상 등
+나머지는 버린다.
 """
 
 from __future__ import annotations
@@ -26,9 +27,12 @@ from playmcp_server.db import schema
 from playmcp_server.db.vocab import (
     CATEGORIES_BY_PART,
     LENGTHS,
+    MATERIALS,
+    SLEEVES,
     STYLES,
     SUBSTYLES,
     normalize_length,
+    warmth_of,
 )
 
 logger = logging.getLogger("playmcp_server.db.build_db")
@@ -43,15 +47,22 @@ _PART_PREFIX: dict[str, str] = {
     "원피스": "dress",
 }
 
+# 소매기장이 있는 부위(하의 제외).
+_SLEEVE_PARTS: frozenset[str] = frozenset({"상의", "아우터", "원피스"})
+
 _INSERT = (
     "INSERT INTO outfits ("
     "id,image_url,style,substyle,"
-    "top_category,top_length,bottom_category,bottom_length,"
-    "outer_category,outer_length,dress_category,dress_length,"
+    "top_category,top_length,top_sleeve,top_material,top_warmth,"
+    "bottom_category,bottom_length,bottom_material,bottom_warmth,"
+    "outer_category,outer_length,outer_sleeve,outer_material,outer_warmth,"
+    "dress_category,dress_length,dress_sleeve,dress_material,dress_warmth,"
     "created_at,updated_at,deleted_at) "
     "VALUES (:id,:image_url,:style,:substyle,"
-    ":top_category,:top_length,:bottom_category,:bottom_length,"
-    ":outer_category,:outer_length,:dress_category,:dress_length,"
+    ":top_category,:top_length,:top_sleeve,:top_material,:top_warmth,"
+    ":bottom_category,:bottom_length,:bottom_material,:bottom_warmth,"
+    ":outer_category,:outer_length,:outer_sleeve,:outer_material,:outer_warmth,"
+    ":dress_category,:dress_length,:dress_sleeve,:dress_material,:dress_warmth,"
     ":created_at,:updated_at,NULL)"
 )
 
@@ -146,6 +157,23 @@ def parse_outfit(doc: dict, *, now: str, url_base: str = "") -> dict:
             raise ParseError(f"{part} 기장 미등록: {length!r}")
         row[f"{prefix}_category"] = category
         row[f"{prefix}_length"] = length
+
+        # 소재: 원값(리스트) 보존 + 보온등급 파생.
+        materials = item.get("소재") or []
+        if not isinstance(materials, list):
+            materials = [materials]
+        for m in materials:
+            if m not in MATERIALS:
+                raise ParseError(f"{part} 소재 미등록: {m!r}")
+        row[f"{prefix}_material"] = ",".join(materials) or None
+        row[f"{prefix}_warmth"] = warmth_of(materials)
+
+        # 소매기장: 상의/아우터/원피스만.
+        if part in _SLEEVE_PARTS:
+            sleeve = item.get("소매기장") or None
+            if sleeve is not None and sleeve not in SLEEVES:
+                raise ParseError(f"{part} 소매기장 미등록: {sleeve!r}")
+            row[f"{prefix}_sleeve"] = sleeve
     # dedupe 키(INSERT 시 무시되는 부가 키). 전체 라벨 기준.
     row["_sig"] = _label_signature(lab)
     return row

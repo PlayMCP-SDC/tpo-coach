@@ -16,14 +16,25 @@ def _doc(
     top_cat: str | None = "블라우스",
     bottom_cat: str | None = "팬츠",
     bottom_len: str | None = "롱",
+    top_sleeve: str | None = None,
+    top_material: list[str] | None = None,
+    bottom_material: list[str] | None = None,
 ) -> dict:
     """최소 유효 라벨링 JSON 문서를 만든다."""
+    top: dict = {"카테고리": top_cat} if top_cat else {}
+    if top_sleeve is not None:
+        top["소매기장"] = top_sleeve
+    if top_material is not None:
+        top["소재"] = top_material
+    bottom: dict = (
+        {"카테고리": bottom_cat, "기장": bottom_len} if bottom_cat else {}
+    )
+    if bottom_material is not None:
+        bottom["소재"] = bottom_material
     lab: dict = {
         "스타일": [{"스타일": style, "서브스타일": substyle}],
-        "상의": [{"카테고리": top_cat} if top_cat else {}],
-        "하의": [
-            {"카테고리": bottom_cat, "기장": bottom_len} if bottom_cat else {}
-        ],
+        "상의": [top],
+        "하의": [bottom],
         "아우터": [{}],
         "원피스": [{}],
     }
@@ -112,6 +123,49 @@ def test_build_skips_missing_style(tmp_path) -> None:
     )
     loaded, skipped, deduped = build_db.build(root, tmp_path / "o.db")
     assert loaded == 0 and skipped == 1
+
+
+def test_parse_extracts_sleeve_material_warmth() -> None:
+    row = build_db.parse_outfit(
+        _doc(9, top_sleeve="반팔", top_material=["우븐", "린넨"]),
+        now="t",
+    )
+    assert row["top_sleeve"] == "반팔"
+    assert row["top_material"] == "우븐,린넨"
+    assert row["top_warmth"] == "시원"       # 린넨 → 시원
+    assert "bottom_sleeve" not in row         # 하의엔 sleeve 없음
+    assert row["bottom_material"] is None     # 소재 미지정
+    assert row["bottom_warmth"] is None
+
+
+def test_parse_bottom_warmth_from_material() -> None:
+    row = build_db.parse_outfit(
+        _doc(10, bottom_material=["코듀로이"]), now="t"
+    )
+    assert row["bottom_material"] == "코듀로이"
+    assert row["bottom_warmth"] == "따뜻"
+
+
+def test_parse_rejects_unknown_sleeve() -> None:
+    with pytest.raises(build_db.ParseError, match="소매기장"):
+        build_db.parse_outfit(_doc(1, top_sleeve="쓰리쿼터"), now="t")
+
+
+def test_parse_rejects_unknown_material() -> None:
+    with pytest.raises(build_db.ParseError, match="소재"):
+        build_db.parse_outfit(_doc(1, top_material=["금속"]), now="t")
+
+
+def test_build_persists_season_columns(tmp_path) -> None:
+    root = tmp_path / "labels"
+    _write(root, "모던", 1, top_sleeve="긴팔", top_material=["울/캐시미어"])
+    dest = tmp_path / "out.db"
+    build_db.build(root, dest, url_base="https://b")
+    conn = sqlite3.connect(dest)
+    r = conn.execute(
+        "SELECT top_sleeve, top_material, top_warmth FROM outfits"
+    ).fetchone()
+    assert r == ("긴팔", "울/캐시미어", "따뜻")
 
 
 def test_build_strict_raises(tmp_path) -> None:
