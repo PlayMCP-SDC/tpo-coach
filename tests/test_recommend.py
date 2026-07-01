@@ -11,7 +11,10 @@ from playmcp_server.models import Outfit
 from playmcp_server.tools.recommend import (
     _clamp_n,
     _format_outfit,
+    _interleave,
     _invalid_style_msg,
+    _no_valid_styles_msg,
+    _normalize_styles,
 )
 
 
@@ -148,3 +151,32 @@ def test_sample_perf_on_real_db(monkeypatch) -> None:
         repository.reset_repository()
     assert len(out) == 3
     assert elapsed < 1.0, f"sample 너무 느림: {elapsed:.3f}s (p99 3s 위험)"
+
+
+def test_normalize_styles_dedup_order_filter() -> None:
+    assert _normalize_styles(["모던", "모던", "없는거", "로맨틱"]) == ["모던", "로맨틱"]
+
+
+def test_normalize_styles_all_invalid_empty() -> None:
+    assert _normalize_styles(["xx", "yy"]) == []
+
+
+def test_no_valid_styles_msg_echoes_and_lists() -> None:
+    msg = _no_valid_styles_msg(["xx"])
+    assert "xx" in msg
+    assert "스트리트" in msg and "클래식" in msg
+
+
+def _mk(oid: str, style: str) -> Outfit:
+    return Outfit(id=oid, image_url=f"u/{oid}", style=style)
+
+
+def test_interleave_round_robin() -> None:
+    a = [_mk("a0", "모던"), _mk("a1", "모던"), _mk("a2", "모던")]
+    b = [_mk("b0", "로맨틱"), _mk("b1", "로맨틱")]
+    assert [o.id for o in _interleave([a, b])] == ["a0", "b0", "a1", "b1", "a2"]
+
+
+def test_interleave_skips_empty_pool() -> None:
+    a = [_mk("a0", "모던")]
+    assert [o.id for o in _interleave([[], a])] == ["a0"]

@@ -6,6 +6,8 @@ DB 의 K-Fashion 셋업을 style 로 무작위 표본 추출해 이미지 URL �
 
 from __future__ import annotations
 
+from itertools import zip_longest
+
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -29,6 +31,34 @@ def _invalid_style_msg(style: str) -> str:
         f"'{style}' 은(는) 지원하지 않는 스타일입니다. "
         f"가능한 스타일: {', '.join(sorted(STYLES))}"
     )
+
+
+_STYLE_LIST = sorted(STYLES)  # 23종 — 설명·스키마·안내 공용 단일 출처
+
+
+def _normalize_styles(styles: list[str]) -> list[str]:
+    """중복 제거(순서 보존) 후 STYLES 에 있는 유효 스타일만 남긴다."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in styles:
+        if s in STYLES and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _no_valid_styles_msg(styles: list[str]) -> str:
+    """유효 스타일이 하나도 없을 때 안내(입력 echo + 유효 목록)."""
+    shown = ", ".join(styles) if styles else "(없음)"
+    return (
+        f"지원하는 스타일이 없습니다 (입력: {shown}). "
+        f"가능한 스타일: {', '.join(_STYLE_LIST)}"
+    )
+
+
+def _interleave(pools: list[list[Outfit]]) -> list[Outfit]:
+    """스타일별 풀을 라운드로빈으로 인터리브한다(각 풀 1개씩 우선, None 제외)."""
+    return [o for group in zip_longest(*pools) for o in group if o is not None]
 
 
 def _part(label: str, category: str | None, length: str | None) -> str | None:
