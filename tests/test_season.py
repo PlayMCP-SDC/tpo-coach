@@ -5,7 +5,13 @@ import sqlite3
 import pytest
 
 from playmcp_server.db import schema
-from playmcp_server.db.season import SEASONS, season_where
+from playmcp_server.db.season import (
+    SEASONS,
+    _summer_score,
+    _winter_score,
+    season_order_by,
+    season_where,
+)
 
 
 @pytest.fixture
@@ -73,3 +79,40 @@ def test_unknown_season_no_filter(db) -> None:
     db.commit()
     assert season_where("겨울잠") == ("", [])
     assert _kept(db, "겨울잠") == {"a"}
+
+
+def _score(db, expr, **cols):
+    keys = ["id", "image_url", "style", *cols.keys()]
+    ph = ",".join("?" * len(keys))
+    db.execute(
+        f"INSERT INTO outfits ({','.join(keys)}) VALUES ({ph})",
+        ["s", "u/s", "모던", *cols.values()],
+    )
+    val = db.execute(f"SELECT {expr} FROM outfits WHERE id='s'").fetchone()[0]
+    db.execute("DELETE FROM outfits WHERE id='s'")
+    return val
+
+
+def test_summer_score_values(db) -> None:
+    e = _summer_score()
+    assert _score(db, e, top_sleeve="반팔") == 1.0
+    assert _score(db, e, top_sleeve="민소매") == 1.0
+    assert _score(db, e, top_sleeve="캡") == 1.0
+    assert _score(db, e, top_sleeve="긴팔") == 0.0
+    assert _score(db, e, top_sleeve=None) == 0.0
+
+
+def test_winter_score_values(db) -> None:
+    e = _winter_score()
+    assert _score(db, e, top_length="롱") == 1.0
+    assert _score(db, e, top_length="노멀") == 0.5
+    assert _score(db, e, outer_length="롱", top_length="노멀") == 1.0  # MAX
+    assert _score(db, e, top_length="크롭") == 0.0
+    assert _score(db, e) == 0.0
+
+
+def test_order_by_only_summer_winter() -> None:
+    assert season_order_by("봄가을") == ("", [])
+    assert season_order_by("없는계절") == ("", [])
+    sql, params = season_order_by("여름")
+    assert params == [0.85] and "?" in sql

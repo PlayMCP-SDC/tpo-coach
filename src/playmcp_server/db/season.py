@@ -53,3 +53,34 @@ def season_where(season: str) -> tuple[str, list[str]]:
     else:
         return "", []
     return " AND ".join(clauses), params
+
+
+# --- 소프트 선호(가중 랜덤 정렬) — 설계 §8 ---
+# 정렬키 = 정규화랜덤(0~1) − _SOFT_BIAS × 선호점수. 값이 작을수록 앞(선호 우선).
+_SOFT_BIAS: float = 0.85
+
+# SQLite RANDOM() 은 부호있는 int64. 부호비트를 마스킹해 [0,1) 로 정규화.
+_RAND01 = "((RANDOM() & 9223372036854775807) / 9223372036854775807.0)"
+
+
+def _summer_score() -> str:
+    """여름 선호점수: 상의 소매가 반팔·민소매·캡 이면 1.0, 아니면 0.0."""
+    return "CASE WHEN top_sleeve IN ('반팔','민소매','캡') THEN 1.0 ELSE 0.0 END"
+
+
+def _winter_score() -> str:
+    """겨울 선호점수: 상의·아우터 기장 중 큰 값. 롱=1.0, 노멀=0.5, 그 외 0.0."""
+    top = "CASE top_length WHEN '롱' THEN 1.0 WHEN '노멀' THEN 0.5 ELSE 0.0 END"
+    outer = "CASE outer_length WHEN '롱' THEN 1.0 WHEN '노멀' THEN 0.5 ELSE 0.0 END"
+    return f"MAX({top}, {outer})"
+
+
+def season_order_by(season: str) -> tuple[str, list[float]]:
+    """계절 → (ORDER BY 키 식, params). 여름/겨울만 가중, 그 외는 ('', [])(랜덤)."""
+    if season == "여름":
+        score = _summer_score()
+    elif season == "겨울":
+        score = _winter_score()
+    else:
+        return "", []
+    return f"{_RAND01} - ? * ({score})", [_SOFT_BIAS]
