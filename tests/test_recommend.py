@@ -190,6 +190,16 @@ async def test_by_situation_schema_advertises_style_enum(client_session) -> None
 
 
 @pytest.mark.asyncio
+async def test_by_style_schema_advertises_season_enum(client_session) -> None:
+    # 스타일 도구도 상황 도구와 동일하게 계절 enum 을 스키마에 광고해야 한다
+    async with client_session() as client:
+        tools = (await client.list_tools()).tools
+    tool = next(t for t in tools if t.name == "recommend_outfits_by_style")
+    enum = tool.inputSchema["properties"]["season"].get("enum", [])
+    assert {"봄가을", "여름", "겨울"} <= set(enum)
+
+
+@pytest.mark.asyncio
 async def test_tools_listed_with_honest_annotations(
     small_db, client_session
 ) -> None:

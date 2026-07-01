@@ -130,7 +130,19 @@ def register_tools(mcp: FastMCP) -> None:
         )
     )
     def recommend_outfits_by_style(
-        style: str, n: int = _N_DEFAULT, season: str | None = None
+        style: str,
+        n: int = _N_DEFAULT,
+        season: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional Korean season to hard-filter by. Choose ONLY from: "
+                    + ", ".join(_SEASON_LIST)
+                    + ". Omit if no particular season applies."
+                ),
+                json_schema_extra={"enum": [*_SEASON_LIST, None]},
+            ),
+        ] = None,
     ) -> str:
         """Recommends outfit sets (코디) of a given style for TPO Coach(티피오 코치).
 
