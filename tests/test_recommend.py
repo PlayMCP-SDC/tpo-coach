@@ -77,13 +77,13 @@ def small_db(tmp_path, monkeypatch):
 
 def test_recommend_two_styles_distributes(small_db) -> None:
     # small_db: 로맨틱 a·b(2건) + 스트리트 c(1건)
-    out = _recommend(["로맨틱", "스트리트"], 3, header=None)
+    out = _recommend(["로맨틱", "스트리트"], 3, title="", label_styles=False)
     assert out.count("![코디]") == 3  # 총 3개
     assert "https://img/c.jpg" in out  # 스트리트도 포함(단일이면 안 나옴)
 
 
 def test_recommend_all_invalid_returns_guidance(small_db) -> None:
-    out = _recommend(["xx", "yy"], 3, header=None)
+    out = _recommend(["xx", "yy"], 3, title="", label_styles=False)
     assert "지원하는 스타일이 없습니다" in out
     assert "스트리트" in out
 
@@ -122,6 +122,22 @@ async def test_by_situation_multi_style_distributes(small_db, client_session) ->
     assert "주말 소개팅" in text          # 상황 echo
     assert "로맨틱" in text and "스트리트" in text  # 사용 스타일 표기 + 코디 다양성
     assert text.count("![코디]") == 3
+
+
+@pytest.mark.asyncio
+async def test_by_situation_heading_omits_styles_absent_from_results(
+    small_db, client_session
+) -> None:
+    # "모던" 은 small_db 에 행이 없음 → 결과에 못 나오므로 머리말에도 없어야 한다
+    async with client_session() as client:
+        res = await client.call_tool(
+            "recommend_outfits_by_situation",
+            {"situation": "여행", "styles": ["로맨틱", "모던"], "n": 2},
+        )
+    text = res.content[0].text
+    assert "로맨틱" in text          # 결과가 있는 스타일은 표기
+    assert "모던" not in text        # 결과에 없는 스타일은 머리말에 광고 안 함
+    assert text.count("![코디]") == 2
 
 
 @pytest.mark.asyncio

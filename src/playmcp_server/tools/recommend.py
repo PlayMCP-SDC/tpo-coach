@@ -83,11 +83,14 @@ def _format_outfit(o: Outfit) -> str:
     )
 
 
-def _recommend(styles: list[str], n: int, header: str | None) -> str:
+def _recommend(
+    styles: list[str], n: int, *, title: str, label_styles: bool
+) -> str:
     """styles 정규화 → 스타일별 무작위 표본 → 라운드로빈 → 마크다운.
 
-    유효 스타일이 하나도 없으면 안내 문자열을 돌려준다(추천 안 함).
-    header 가 있으면 결과 맨 위에 붙인다.
+    유효 스타일이 하나도 없으면 안내 문자열을 돌려준다(추천 안 함). title 은 결과
+    머리말이며, label_styles=True 면 잘라낸 뒤 실제 결과에 등장한 스타일들만
+    머리말에 덧붙인다(후보가 아니라 실제 사용 스타일).
     """
     valid = _normalize_styles(styles)
     if not valid:
@@ -98,6 +101,10 @@ def _recommend(styles: list[str], n: int, header: str | None) -> str:
     outfits = _interleave(pools)[:k]
     if not outfits:
         return "해당 스타일의 코디를 찾지 못했습니다. 다른 스타일로 시도해 보세요."
+    header = title
+    if label_styles:
+        used = list(dict.fromkeys(o.style for o in outfits))
+        header = f"{title} ({' · '.join(used)})"
     body = "\n\n".join(_format_outfit(o) for o in outfits)
     return f"{header}\n\n{body}" if header else body
 
@@ -128,7 +135,9 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Markdown listing recommended outfits (image, style, composition).
         """
-        return _recommend([style], n, header=f"**{style}** 스타일 코디 추천")
+        return _recommend(
+            [style], n, title=f"**{style}** 스타일 코디 추천", label_styles=False
+        )
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -172,8 +181,5 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Markdown: situation/styles heading + recommended outfits across styles.
         """
-        used = _normalize_styles(styles)
-        label = " · ".join(used)
-        suffix = f" ({label})" if label else ""
-        header = f"**{situation}**에 어울리는 코디 추천" + suffix
-        return _recommend(styles, n, header=header)
+        title = f"**{situation}**에 어울리는 코디 추천"
+        return _recommend(styles, n, title=title, label_styles=True)
